@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./tailwind-theme.css";
+@import "./fonts.css";
+
+@layer base {
+  html {
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--bg-canvas);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--brand-subtle);
+    color: var(--text-primary);
+  }
+  /* Scrollbars stay quiet: chrome steps back (principle 5). */
+  * {
+    scrollbar-color: var(--surface-3) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+@layer utilities {
+  /* Readings: mono with tabular, lining figures so live digits never jitter. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .ease-standard {
+    transition-timing-function: var(--ease-standard);
+  }
+  .duration-tick {
+    transition-duration: var(--duration-tick);
+  }
+  .duration-sweep {
+    transition-duration: var(--duration-sweep);
+  }
+  /* Estimated data has no colour of its own: it is hatched. */
+  .hatch-estimated {
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--text-secondary) 0 1px,
+      transparent 1px 5px
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+}

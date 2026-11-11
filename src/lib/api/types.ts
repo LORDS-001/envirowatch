@@ -1,0 +1,21 @@
+import type { z } from "zod";
+import type * as S from "./schemas";
+
+export type Role = z.infer<typeof S.RoleSchema>;
+export type Organization = z.infer<typeof S.OrganizationSchema>;
+export type User = z.infer<typeof S.UserSchema>;
+export type LoginResponse = z.infer<typeof S.LoginResponseSchema>;
+export type Site = z.infer<typeof S.SiteSchema>;
+export type Device = z.infer<typeof S.DeviceSchema>;
+export type Measurement = z.infer<typeof S.MeasurementSchema>;
+export type Aggregate = z.infer<typeof S.AggregateSchema>;
+export type HeatmapSample = z.infer<typeof S.HeatmapSampleSchema>;
+export type Heatmap = z.infer<typeof S.HeatmapSchema>;
+export type Alert = z.infer<typeof S.AlertSchema>;
+export type AlertStatus = z.infer<typeof S.AlertStatusSchema>;
+export type NotificationAttempt = z.infer<typeof S.NotificationAttemptSchema>;
+export type SystemHealth = z.infer<typeof S.SystemHealthSchema>;
+export type QualityDay = z.infer<typeof S.QualityDaySchema>;
+export type QualitySummary = z.infer<typeof S.QualitySummarySchema>;
+export type PublicSummary = z.infer<typeof S.PublicSummarySchema>;
+export type WsEvent = z.infer<typeof S.WsEventSchema>;

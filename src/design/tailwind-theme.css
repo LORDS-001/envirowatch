@@ -1,0 +1,112 @@
+/* Tailwind CSS v4 theme for EnviroWatch. Import AFTER tailwindcss and tokens.css:
+   @import "tailwindcss"; @import "./tokens.css"; @import "./tailwind-theme.css";
+   Utilities then read the tokens, e.g. bg-canvas, bg-surface-1, text-fg, text-fg-muted, border-line, border-line-strong,
+   bg-brand, text-on-brand, text-state-critical, fill-heat-4, rounded-lg (16px), rounded-pill, shadow-overlay, text-reading-xl.
+   Spacing needs no mapping: Tailwind v4 default --spacing is 0.25rem, so p-4 = 16px = space-4. */
+
+@theme {
+  --color-*: initial;  /* drop Tailwind's default palette: only brand tokens exist */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@theme inline {
+  --color-canvas: var(--bg-canvas);
+  --color-sunken: var(--bg-sunken);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border-subtle);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-fg-disabled: var(--text-disabled);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-press: var(--brand-press);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-on-brand: var(--on-brand);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-on-inverse: var(--on-inverse);
+  --color-focus-ring: var(--focus-ring);
+  --color-state-normal: var(--state-normal);
+  --color-state-normal-subtle: var(--state-normal-subtle);
+  --color-state-warn: var(--state-warn);
+  --color-state-warn-subtle: var(--state-warn-subtle);
+  --color-state-critical: var(--state-critical);
+  --color-state-critical-subtle: var(--state-critical-subtle);
+  --color-state-suspicious: var(--state-suspicious);
+  --color-state-suspicious-subtle: var(--state-suspicious-subtle);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-other: var(--series-other);
+  --color-heat-1: var(--heat-1);
+  --color-heat-2: var(--heat-2);
+  --color-heat-3: var(--heat-3);
+  --color-heat-4: var(--heat-4);
+  --color-heat-5: var(--heat-5);
+  --color-heat-6: var(--heat-6);
+  --color-heat-7: var(--heat-7);
+  --color-div-neg-2: var(--div-neg-2);
+  --color-div-neg-1: var(--div-neg-1);
+  --color-div-mid: var(--div-mid);
+  --color-div-pos-1: var(--div-pos-1);
+  --color-div-pos-2: var(--div-pos-2);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-pill: var(--radius-pill);
+  --shadow-overlay: var(--shadow-overlay);
+  --shadow-modal: var(--shadow-modal);
+  --text-display-xl: 40px;
+  --text-display-xl--line-height: 44px;
+  --text-display-xl--font-weight: 600;
+  --text-display-xl--letter-spacing: -0.01em;
+  --text-display-lg: 32px;
+  --text-display-lg--line-height: 36px;
+  --text-display-lg--font-weight: 600;
+  --text-display-lg--letter-spacing: -0.01em;
+  --text-h1: 24px;
+  --text-h1--line-height: 30px;
+  --text-h1--font-weight: 600;
+  --text-h2: 18px;
+  --text-h2--line-height: 24px;
+  --text-h2--font-weight: 600;
+  --text-h3: 15px;
+  --text-h3--line-height: 20px;
+  --text-h3--font-weight: 600;
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 24px;
+  --text-body-lg--font-weight: 400;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-body--font-weight: 400;
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 18px;
+  --text-body-sm--font-weight: 400;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-label--font-weight: 500;
+  --text-eyebrow: 11px;
+  --text-eyebrow--line-height: 16px;
+  --text-eyebrow--font-weight: 600;
+  --text-eyebrow--letter-spacing: 0.08em;
+  --text-reading-xl: 36px;
+  --text-reading-xl--line-height: 40px;
+  --text-reading-xl--font-weight: 500;
+  --text-reading-xl--letter-spacing: -0.02em;
+  --text-reading-md: 20px;
+  --text-reading-md--line-height: 24px;
+  --text-reading-md--font-weight: 500;
+  --text-data: 13px;
+  --text-data--line-height: 18px;
+  --text-data--font-weight: 400;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+}
