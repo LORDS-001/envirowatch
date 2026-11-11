@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -7,11 +7,15 @@ import {
   type ColumnDef,
   type RowSelectionState,
   type SortingState,
+  type Table,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { NARROW_QUERY, useMediaQuery } from "@/lib/hooks";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/Feedback";
+import { InlineSelect } from "@/components/ui/Field";
+import { IconButton } from "@/components/ui/IconButton";
 
 export type { ColumnDef };
 
@@ -20,6 +24,8 @@ declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
     numeric?: boolean;
     width?: string;
+    /** On phones, this column heads each card. Defaults to the first column. */
+    cardTitle?: boolean;
   }
 }
 
@@ -42,6 +48,7 @@ interface DataTableProps<T> {
 /**
  * TanStack Table + Virtual. Only visible rows are in the DOM, so 100,000 rows scroll smoothly.
  * Keyboard: focus the table, ↑ ↓ move between rows, Home/End jump, Enter opens.
+ * Below 640 px the same rows render as cards, one labelled field per column.
  */
 export function DataTable<T>({
   data,
@@ -58,9 +65,7 @@ export function DataTable<T>({
   initialSorting = [],
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting);
-  const [active, setActive] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const rowHeight = compact ? 32 : 40;
+  const narrow = useMediaQuery(NARROW_QUERY);
   const selectable = !!selection;
 
   // Selection is a real checkbox column so mouse and screen-reader users can select too.
@@ -114,7 +119,40 @@ export function DataTable<T>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+
+  if (error) return <ErrorState title={error.title} detail={error.detail} onRetry={error.onRetry} />;
+
+  const body = loading ? (
+    <div className="flex flex-col gap-2 p-3">
+      {Array.from({ length: 6 }, (_, i) => (
+        <Skeleton key={i} className="h-6" />
+      ))}
+    </div>
+  ) : table.getRowModel().rows.length === 0 ? (
+    <EmptyState title={empty?.title ?? "Nothing to show"} description={empty?.description} action={empty?.action} />
+  ) : null;
+
+  return narrow ? (
+    <DataCards table={table} caption={caption} height={height} body={body} />
+  ) : (
+    <DataGrid table={table} caption={caption} height={height} compact={compact} body={body} onRowOpen={onRowOpen} />
+  );
+}
+
+interface ViewProps<T> {
+  table: Table<T>;
+  caption: string;
+  height: number;
+  /** Loading or empty state, shown in place of rows. */
+  body: ReactNode;
+}
+
+function DataGrid<T>({ table, caption, height, compact, body, onRowOpen }: ViewProps<T> & { compact: boolean; onRowOpen?: (row: T) => void }) {
+  const [active, setActive] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowHeight = compact ? 32 : 40;
   const rows = table.getRowModel().rows;
+  const selectable = table.options.enableRowSelection === true;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -142,13 +180,11 @@ export function DataTable<T>({
       virtualizer.scrollToIndex(next, { align: "auto" });
     } else if (e.key === "Enter" && onRowOpen && rows[active]) {
       onRowOpen(rows[active].original);
-    } else if (e.key === " " && selection && rows[active]) {
+    } else if (e.key === " " && selectable && rows[active]) {
       e.preventDefault();
       rows[active].toggleSelected();
     }
   };
-
-  if (error) return <ErrorState title={error.title} detail={error.detail} onRetry={error.onRetry} />;
 
   const template = table
     .getVisibleLeafColumns()
@@ -167,7 +203,7 @@ export function DataTable<T>({
         tabIndex={0}
         onKeyDown={onKey}
         className="overflow-auto"
-        style={{ height: loading || rows.length === 0 ? undefined : Math.min(height, (rows.length + 1) * rowHeight + 2) }}
+        style={{ height: body ? undefined : Math.min(height, (rows.length + 1) * rowHeight + 2) }}
       >
         <div role="rowgroup" className="sticky top-0 z-10 bg-surface-2">
           {table.getHeaderGroups().map((hg) => (
@@ -205,15 +241,7 @@ export function DataTable<T>({
           ))}
         </div>
 
-        {loading ? (
-          <div className="flex flex-col gap-2 p-3">
-            {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} className="h-6" />
-            ))}
-          </div>
-        ) : rows.length === 0 ? (
-          <EmptyState title={empty?.title ?? "Nothing to show"} description={empty?.description} action={empty?.action} />
-        ) : (
+        {body ?? (
           <div role="rowgroup" className="relative" style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((vi) => {
               const row = rows[vi.index]!;
@@ -223,7 +251,7 @@ export function DataTable<T>({
                   role="row"
                   id={`row-${row.id}`}
                   aria-rowindex={vi.index + 2}
-                  aria-selected={selection ? row.getIsSelected() : undefined}
+                  aria-selected={selectable ? row.getIsSelected() : undefined}
                   key={row.id}
                   className={cn(
                     "absolute inset-x-0 grid border-t border-line",
@@ -250,6 +278,149 @@ export function DataTable<T>({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const headerText = (header: unknown, fallback: string) => (typeof header === "string" ? header : fallback);
+
+/**
+ * Phones: one card per row, the title column on top and every other column as a labelled field.
+ * Column headers aren't visible, so sorting moves to a select above the list.
+ */
+function DataCards<T>({ table, caption, height, body }: ViewProps<T>) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rows = table.getRowModel().rows;
+  const selectable = table.options.enableRowSelection === true;
+  const columns = table.getVisibleLeafColumns().filter((c) => c.id !== "_select");
+  const titleColumn = columns.find((c) => c.columnDef.meta?.cardTitle) ?? columns[0];
+  const fieldColumns = columns.filter((c) => c !== titleColumn);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    // Title line plus one 24 px line per field; real heights are measured once drawn.
+    estimateSize: () => 56 + fieldColumns.length * 24,
+    gap: 8,
+    overscan: 4,
+  });
+
+  const sortable = columns.filter((c) => c.getCanSort());
+  const sort = table.getState().sorting[0];
+
+  return (
+    <div className="flex flex-col gap-3">
+      {(sortable.length > 0 || selectable) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {sortable.length > 0 && (
+            <>
+              <InlineSelect
+                label={`Sort ${caption.toLowerCase()}`}
+                value={sort?.id ?? ""}
+                onChange={(e) => table.setSorting(e.target.value ? [{ id: e.target.value, desc: sort?.desc ?? false }] : [])}
+                options={[
+                  { value: "", label: "Default order" },
+                  ...sortable.map((c) => ({ value: c.id, label: `Sort by ${headerText(c.columnDef.header, c.id)}` })),
+                ]}
+                className="min-w-0 flex-1"
+              />
+              {sort && (
+                <IconButton
+                  label={sort.desc ? "Sorted high to low. Sort low to high" : "Sorted low to high. Sort high to low"}
+                  icon={sort.desc ? <ArrowDown size={16} aria-hidden="true" /> : <ArrowUp size={16} aria-hidden="true" />}
+                  onClick={() => table.setSorting([{ id: sort.id, desc: !sort.desc }])}
+                />
+              )}
+            </>
+          )}
+          {selectable && (
+            <label className="flex h-10 items-center gap-2 px-2 text-body text-fg-secondary">
+              <input
+                type="checkbox"
+                checked={table.getIsAllRowsSelected()}
+                ref={(el) => {
+                  if (el) el.indeterminate = table.getIsSomeRowsSelected();
+                }}
+                onChange={table.getToggleAllRowsSelectedHandler()}
+                className="size-4 accent-brand"
+              />
+              Select all
+            </label>
+          )}
+        </div>
+      )}
+
+      {body ? (
+        <div className="rounded-md border border-line">{body}</div>
+      ) : (
+        // Focusable so the list scrolls from the keyboard; links and checkboxes inside are tab stops.
+        <div
+          ref={scrollRef}
+          role="region"
+          aria-label={caption}
+          tabIndex={0}
+          className="overflow-auto rounded-md"
+          style={{ maxHeight: `min(${height}px, 70dvh)` }}
+        >
+          <ul className="relative" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((vi) => {
+              const row = rows[vi.index]!;
+              const title = titleColumn && row.getAllCells().find((c) => c.column.id === titleColumn.id);
+              return (
+                <li
+                  key={row.id}
+                  ref={virtualizer.measureElement}
+                  data-index={vi.index}
+                  aria-setsize={rows.length}
+                  aria-posinset={vi.index + 1}
+                  className={cn(
+                    "absolute inset-x-0 top-0 rounded-md border border-line p-3",
+                    row.getIsSelected() ? "bg-surface-3" : "bg-surface-1",
+                  )}
+                  style={{ transform: `translateY(${vi.start}px)` }}
+                >
+                  <div className="flex min-h-6 items-center gap-3">
+                    {selectable && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${row.id}`}
+                        checked={row.getIsSelected()}
+                        onChange={row.getToggleSelectedHandler()}
+                        className="size-4 shrink-0 accent-brand"
+                      />
+                    )}
+                    {title && (
+                      <span className={cn("min-w-0 truncate text-body-lg text-fg", titleColumn.columnDef.meta?.numeric && "num")}>
+                        {flexRender(title.column.columnDef.cell, title.getContext())}
+                      </span>
+                    )}
+                  </div>
+                  <dl className="mt-2 grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
+                    {row
+                      .getVisibleCells()
+                      .filter((cell) => fieldColumns.includes(cell.column))
+                      .map((cell) => (
+                        <Fragment key={cell.id}>
+                          <dt className="flex min-h-6 items-center text-body-sm text-fg-muted">
+                            {headerText(cell.column.columnDef.header, cell.column.id)}
+                          </dt>
+                          <dd
+                            className={cn(
+                              "flex min-h-6 min-w-0 items-center text-body text-fg-secondary",
+                              cell.column.columnDef.meta?.numeric && "num text-data text-fg",
+                            )}
+                          >
+                            <span className="min-w-0 truncate">{flexRender(cell.column.columnDef.cell, cell.getContext())}</span>
+                          </dd>
+                        </Fragment>
+                      ))}
+                  </dl>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

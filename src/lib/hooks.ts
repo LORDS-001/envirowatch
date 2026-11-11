@@ -18,22 +18,34 @@ export function useSize<T extends HTMLElement>() {
   return [ref, size] as const;
 }
 
-const reducedQuery = "(prefers-reduced-motion: reduce)";
-let reducedMql: MediaQueryList | null = null;
-const getReducedMql = () => (reducedMql ??= window.matchMedia(reducedQuery));
+// One MediaQueryList per query, shared by every subscriber.
+const mqls = new Map<string, MediaQueryList>();
+const getMql = (query: string) => {
+  let mql = mqls.get(query);
+  if (!mql) mqls.set(query, (mql = window.matchMedia(query)));
+  return mql;
+};
 
-/** Reads the media query directly so JS-driven animation respects it too. */
-export function usePrefersReducedMotion(): boolean {
+/** Whether a media query matches, kept in sync as it changes. */
+export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
     (cb) => {
-      const mq = getReducedMql();
+      const mq = getMql(query);
       mq.addEventListener("change", cb);
       return () => mq.removeEventListener("change", cb);
     },
-    () => getReducedMql().matches,
+    () => getMql(query).matches,
     () => false,
   );
 }
+
+/** Reads the media query directly so JS-driven animation respects it too. */
+export function usePrefersReducedMotion(): boolean {
+  return useMediaQuery("(prefers-reduced-motion: reduce)");
+}
+
+/** Below Tailwind's `sm` (640 px): phones, where tables become cards. */
+export const NARROW_QUERY = "(max-width: 639.98px)";
 
 // One shared 1 s clock. Only components that display an age subscribe, so a ticking
 // "10 s ago" never re-renders a chart.

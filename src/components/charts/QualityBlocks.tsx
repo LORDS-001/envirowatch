@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { cn } from "@/lib/cn";
+import { NARROW_QUERY, useMediaQuery } from "@/lib/hooks";
 import type { QualityDay } from "@/lib/api/types";
 import { formatNumber, formatPercent, formatWeekdayShort } from "@/lib/format";
 import { StateIcon } from "@/components/ui/StateIcon";
@@ -36,6 +37,8 @@ function niceMax(share: number): number {
  */
 export const QualityBlocks = memo(function QualityBlocks({ days, height = 152 }: { days: readonly QualityDay[]; height?: number }) {
   const today = days.length - 1;
+  // Seven one-decimal numbers don't fit side by side on a phone; whole percentages do.
+  const decimals = useMediaQuery(NARROW_QUERY) ? 0 : 1;
   const max = niceMax(Math.max(0.001, ...days.map((d) => (d.estimated + d.suspicious + d.missing) / (total(d) || 1))));
   const ticks = [0, max / 2, max];
 
@@ -55,13 +58,13 @@ export const QualityBlocks = memo(function QualityBlocks({ days, height = 152 }:
           ))}
         </div>
 
-        <div className="flex flex-1 gap-2" aria-hidden="true">
+        <div className="flex min-w-0 flex-1 gap-1 sm:gap-2" aria-hidden="true">
           {days.map((d, i) => {
             const t = total(d) || 1;
             return (
-              <div key={d.date} className="flex flex-1 flex-col items-center">
+              <div key={d.date} className="flex min-w-0 flex-1 flex-col items-center">
                 <span className={cn("num h-7 text-data", i === today ? "text-fg" : "text-fg-secondary")}>
-                  {formatNumber((d.valid / t) * 100, 1)}
+                  {formatNumber((d.valid / t) * 100, decimals)}
                 </span>
                 <div className="relative flex w-full flex-col justify-end gap-1" style={{ height }}>
                   <div className="absolute inset-x-0 bottom-0 border-t border-line" />

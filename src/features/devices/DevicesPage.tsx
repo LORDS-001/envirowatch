@@ -12,6 +12,7 @@ import { staleAfterMs } from "@/lib/config";
 import { usePageTitle } from "@/components/layout/AppShell";
 import { TreeSidebar } from "@/components/layout/TreeSidebar";
 import { DataTable, type ColumnDef } from "@/components/charts/DataTable";
+import { InlineSelect } from "@/components/ui/Field";
 import { Age } from "@/components/ui/Age";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -146,11 +147,19 @@ export default function DevicesPage() {
         sites={tree}
         selectedSite={siteFilter}
         onSelectSite={setSiteFilter}
-        className="max-h-[calc(100dvh-140px)] overflow-y-auto"
+        className="max-h-[calc(100dvh-140px)] overflow-y-auto max-lg:hidden"
       />
       <Card className="flex min-w-0 flex-col gap-4 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <SearchField label="Filter devices" placeholder="Filter by ID or site" value={search} onChange={(e) => setSearch(e.target.value)} className="w-72" />
+          {/* Below 1024 px the site tree would push the list off-screen; a picker does the same job. */}
+          <InlineSelect
+            label="Site"
+            value={siteFilter ?? ""}
+            onChange={(e) => setSiteFilter(e.target.value || null)}
+            options={[{ value: "", label: "All sites" }, ...(sites.data?.items ?? []).map((s) => ({ value: s.id, label: s.name }))]}
+            className="w-full sm:w-56 lg:hidden"
+          />
+          <SearchField label="Filter devices" placeholder="Filter by ID or site" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-72" />
           <p className="text-body-sm text-fg-muted" aria-live="polite">
             {devices.data ? `${rows.length} of ${all.length} devices${siteFilter ? ` at ${siteName.get(siteFilter)}` : ""}` : ""}
           </p>
@@ -188,7 +197,7 @@ export default function DevicesPage() {
           selection={isAdmin ? { value: selection, onChange: setSelection } : undefined}
           onRowOpen={(d) => navigate(`/devices/${d.id}`)}
         />
-        {isAdmin && <p className="text-body-sm text-fg-muted">Space selects a row, Enter opens it.</p>}
+        {isAdmin && <p className="text-body-sm text-fg-muted max-sm:hidden">Space selects a row, Enter opens it.</p>}
       </Card>
 
       {/* Mounted on open, so the suggested ID and site reflect the loaded device list. */}
