@@ -18,27 +18,47 @@ function getWorker(): Worker | null {
 }
 
 /**
- * Computes an IDW grid off the main thread, debounced. Falls back to the main thread where
- * workers are unavailable (tests).
+ * Computes an IDW grid off the main thread. Requests are debounced and coalesced: at most one
+ * job is in flight per map, and only the newest pending request is sent when it finishes, so a
+ * slow grid can never be starved by faster-changing inputs. Every result is shown when it lands.
+ * Falls back to the main thread where workers are unavailable (tests).
  */
 export function useIdwGrid(req: GridRequest | null, debounceMs = 120): GridResult | null {
   const [result, setResult] = useState<GridResult | null>(null);
-  const latest = useRef(0);
+  const inFlight = useRef(false);
+  const pending = useRef<GridRequest | null>(null);
+  const alive = useRef(true);
+
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!req) return;
-    const handle = setTimeout(() => {
+    const send = (r: GridRequest) => {
       const w = getWorker();
       if (!w) {
-        setResult(computeGrid(req));
+        setResult(computeGrid(r));
         return;
       }
+      inFlight.current = true;
       const id = ++nextId;
-      latest.current = id;
-      waiting.set(id, (r) => {
-        if (latest.current === id) setResult(r);
+      waiting.set(id, (res) => {
+        inFlight.current = false;
+        if (!alive.current) return;
+        setResult(res);
+        const next = pending.current;
+        pending.current = null;
+        if (next) send(next);
       });
-      w.postMessage({ id, ...req });
+      w.postMessage({ id, ...r });
+    };
+    const handle = setTimeout(() => {
+      if (inFlight.current) pending.current = req;
+      else send(req);
     }, debounceMs);
     return () => clearTimeout(handle);
   }, [req, debounceMs]);

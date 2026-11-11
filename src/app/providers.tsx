@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/client";
+import { ToastViewport } from "@/components/ui/Toast";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 
 export const queryClient = new QueryClient({
@@ -16,7 +17,10 @@ export const queryClient = new QueryClient({
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+      <TooltipProvider delayDuration={300}>
+        {children}
+        <ToastViewport />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

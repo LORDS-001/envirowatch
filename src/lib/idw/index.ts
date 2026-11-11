@@ -80,18 +80,37 @@ export interface GridResult {
   alpha: Float32Array;
 }
 
-/** Evaluates IDW at cell centres. Used by the worker; cheap enough on the main thread for small grids. */
+/** Metres per degree of latitude on the mean sphere. */
+const M_PER_DEG = (Math.PI / 180) * EARTH_RADIUS_M;
+
+/**
+ * Evaluates IDW at cell centres. Used by the worker; cheap enough on the main thread for small grids.
+ * Cells clearly beyond coverage are skipped with a flat-earth pre-check (accurate to well under 1 %
+ * at city scale, with a 5 % margin); every cell that is drawn uses the exact haversine IDW.
+ */
 export function computeGrid({ bounds, cols, rows, samples, power, radiusM }: GridRequest): GridResult {
   const [south, west, north, east] = bounds;
-  const values = new Float32Array(cols * rows);
+  const values = new Float32Array(cols * rows).fill(Number.NaN);
   const alpha = new Float32Array(cols * rows);
   const dLat = (north - south) / rows;
   const dLng = (east - west) / cols;
+  const kx = Math.cos((((south + north) / 2) * Math.PI) / 180) * M_PER_DEG;
+  const cutoff2 = (radiusM * 1.05) ** 2;
   for (let r = 0; r < rows; r++) {
     const lat = north - (r + 0.5) * dLat;
     for (let c = 0; c < cols; c++) {
       const lng = west + (c + 0.5) * dLng;
       const i = r * cols + c;
+      let near = false;
+      for (const s of samples) {
+        const dy = (s.lat - lat) * M_PER_DEG;
+        const dx = (s.lng - lng) * kx;
+        if (dx * dx + dy * dy <= cutoff2) {
+          near = true;
+          break;
+        }
+      }
+      if (!near) continue;
       const est = idw(lat, lng, samples, power);
       const a = est ? coverageAlpha(est.nearestM, radiusM) : 0;
       alpha[i] = a;
