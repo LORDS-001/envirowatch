@@ -12,13 +12,13 @@ export function useSites() {
 }
 
 export function useDevices() {
-  return useQuery({ queryKey: ["devices"], queryFn: ({ signal }) => api.devices(signal), refetchInterval: 60_000 });
+  return useQuery({ queryKey: ["devices"], queryFn: ({ signal }) => api.devices({}, signal), refetchInterval: 60_000 });
 }
 
 export function useHeatmap(metric: MetricId) {
   return useQuery({
     queryKey: ["heatmap", metric],
-    queryFn: ({ signal }) => api.heatmap(metric, signal),
+    queryFn: ({ signal }) => api.heatmap(metric, {}, signal),
     refetchInterval: 60_000,
   });
 }
