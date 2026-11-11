@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import * as RD from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { useReturnFocus } from "./returnFocus";
 
 interface DrawerProps {
   open: boolean;
@@ -13,13 +14,15 @@ interface DrawerProps {
   footer?: ReactNode;
 }
 
-/** Right-side panel over a 60 % sunken scrim. Focus trap, Esc, focus return. */
+/** Right-side panel over a 60 % sunken scrim. Focus trap, Esc, focus return (to main if the opener is gone). */
 export function Drawer({ open, onOpenChange, title, label, header, children, footer }: DrawerProps) {
+  const returnFocus = useReturnFocus();
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
         <RD.Overlay className="fixed inset-0 z-40 bg-sunken/60" />
         <RD.Content
+          {...returnFocus}
           aria-label={label}
           className="fixed top-0 right-0 bottom-0 z-50 flex w-[min(560px,100vw)] flex-col border-l border-line bg-surface-1 shadow-modal"
         >

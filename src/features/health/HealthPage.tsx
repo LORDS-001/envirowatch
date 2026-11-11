@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CircleOff, Cpu, Diamond, TrendingUp } from "lucide-react";
 import { api } from "@/lib/api/endpoints";
@@ -159,7 +159,7 @@ function HealthTable({
             {row.original.device_id}
           </Link>
         ),
-        meta: { width: "120px" },
+        meta: { width: "120px", cardTitle: true },
       },
       { id: "site", header: "Site", accessorFn: (r) => r.siteName, meta: { width: "minmax(120px,1fr)" } },
       {
@@ -189,6 +189,7 @@ function HealthTable({
     ],
     [],
   );
+  const navigate = useNavigate();
   return (
     <DataTable
       data={data}
@@ -199,6 +200,7 @@ function HealthTable({
       loading={loading}
       error={error ? { title: "Couldn’t load sensor health", detail: errorMessage(error), onRetry: retry } : null}
       empty={{ title: "Every sensor is healthy", description: "Silent, drifting and suspicious sensors appear here." }}
+      onRowOpen={(r) => navigate(`/devices/${r.device_id}`)}
     />
   );
 }

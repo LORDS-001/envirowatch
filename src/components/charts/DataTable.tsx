@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -159,6 +159,13 @@ function DataGrid<T>({ table, caption, height, compact, body, onRowOpen }: ViewP
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: 12,
+  });
+
+  // The grid is one tab stop. Row checkboxes (Space) and row links (Enter) are reached through
+  // its keys, so they leave the tab order; other controls in cells stay reachable.
+  useLayoutEffect(() => {
+    const selector = [selectable && "[role=gridcell] input[type=checkbox]", onRowOpen && "[role=gridcell] a[href]"].filter(Boolean).join(",");
+    if (selector) scrollRef.current?.querySelectorAll<HTMLElement>(selector).forEach((el) => (el.tabIndex = -1));
   });
 
   const onKey = (e: KeyboardEvent) => {

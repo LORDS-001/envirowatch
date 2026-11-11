@@ -31,8 +31,10 @@
   color: var(--text-muted) !important;
   font-size: 11px;
 }
+/* Links inside running text need more than colour to stand out (WCAG 1.4.1). */
 .leaflet-control-attribution a {
   color: var(--text-secondary) !important;
+  text-decoration: underline;
 }
 .leaflet-marker-icon.ew-marker {
   background: none;

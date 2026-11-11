@@ -3,6 +3,7 @@ import * as RD from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button, type ButtonVariant } from "./Button";
+import { useReturnFocus } from "./returnFocus";
 
 interface DialogProps {
   open: boolean;
@@ -16,13 +17,15 @@ interface DialogProps {
   className?: string;
 }
 
-/** Centred modal: focus trap, Esc to close, focus returns to the trigger (Radix). */
+/** Centred modal: focus trap, Esc to close, focus returns to the trigger (or main, if it's gone). */
 export function Dialog({ open, onOpenChange, title, description, children, footer, dismissable = true, className }: DialogProps) {
+  const returnFocus = useReturnFocus();
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
         <RD.Overlay className="fixed inset-0 z-40 bg-sunken/60" />
         <RD.Content
+          {...returnFocus}
           onEscapeKeyDown={(e) => !dismissable && e.preventDefault()}
           onPointerDownOutside={(e) => !dismissable && e.preventDefault()}
           className={cn(
