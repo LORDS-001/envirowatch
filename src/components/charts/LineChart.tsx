@@ -92,11 +92,28 @@ export const LineChart = memo(function LineChart({
         const sorted = [...s.points].sort((a, b) => a.t - b.t);
         const inLine = sorted.filter((p) => includeInLine(p.quality));
         const markers = sorted.filter((p) => !includeInLine(p.quality));
+        // Gaps are found on every reading, before thinning: thinned neighbours sit further apart
+        // than gapMs and would otherwise break the line at every point.
+        const runs: LinePoint[][] = [];
+        let cur: LinePoint[] = [];
+        for (const p of inLine) {
+          const prev = cur[cur.length - 1];
+          if (prev && p.t - prev.t > gapMs) {
+            runs.push(cur);
+            cur = [];
+          }
+          cur.push(p);
+        }
+        if (cur.length) runs.push(cur);
+        // Each run gets its share of the point budget, at least enough to keep its ends.
         const cap = Math.min(MAX_POINTS, Math.max(200, Math.round(width - PAD.left - PAD.right)));
-        const shown = inLine.length > cap ? lttb(inLine, cap, (p) => p.t, (p) => p.v) : inLine;
-        return { ...s, all: sorted, shown, markers };
+        const segments = runs.map((run) => {
+          const share = Math.max(3, Math.round((cap * run.length) / (inLine.length || 1)));
+          return run.length > share ? lttb(run, share, (p) => p.t, (p) => p.v) : run;
+        });
+        return { ...s, all: sorted, segments, markers };
       }),
-    [series, width],
+    [series, width, gapMs],
   );
 
   const { x, y, allTimes } = useMemo(() => {
@@ -121,21 +138,10 @@ export const LineChart = memo(function LineChart({
   const paths = useMemo(
     () =>
       prepared.map((s) => {
-        // Break the line wherever consecutive points are further apart than gapMs.
         const gen = line<LinePoint>()
           .x((p) => x(p.t))
           .y((p) => y(p.v));
-        const segments: LinePoint[][] = [];
-        let cur: LinePoint[] = [];
-        for (const p of s.shown) {
-          const prev = cur[cur.length - 1];
-          if (prev && p.t - prev.t > gapMs) {
-            segments.push(cur);
-            cur = [];
-          }
-          cur.push(p);
-        }
-        if (cur.length) segments.push(cur);
+        const { segments } = s;
         return {
           id: s.id,
           solid: segments.map((seg) => gen(seg.filter((p) => p.quality !== "estimated")) ?? "").filter(Boolean),
@@ -143,7 +149,7 @@ export const LineChart = memo(function LineChart({
           gaps: segments.length - 1,
         };
       }),
-    [prepared, x, y, gapMs],
+    [prepared, x, y],
   );
 
   const hover = useMemo(() => {
