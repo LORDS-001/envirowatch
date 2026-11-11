@@ -59,4 +59,4 @@ REST ──► api client ──(Zod)──► TanStack Query ──► pages
 
 ## Status
 
-Phases 0–2 are in place: foundation, live data and the Overview. See `docs/FRONTEND_PLAN.md` for what's next and `docs/CHANGELOG.md` for details.
+All screens are built against the mocked contract: Overview, Map, Analytics, Alerts, Health, Devices, Reports, Settings, Simulator and the public portal. Phase 6 (hardening) is next; see `docs/FRONTEND_PLAN.md` and `docs/CHANGELOG.md`.

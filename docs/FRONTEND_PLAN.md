@@ -1,6 +1,6 @@
 # EnviroWatch frontend plan
 
-Status: Phases 0–2 done (2026-11-11); next is phase 3 (map and analytics). This plan follows `CLAUDE_CODE_PROMPT.md`; where the two differ, the brief wins and the difference is logged in `DECISIONS.md`.
+Status: Phases 0–5 done (2026-11-11); phase 6 (hardening) remains. This plan follows `CLAUDE_CODE_PROMPT.md`; where the two differ, the brief wins and the difference is logged in `DECISIONS.md`.
 
 ## Inputs actually received
 
@@ -58,10 +58,10 @@ As specified in brief §4. `src/mocks/` holds the seeded simulator (`sim/`), the
 | 0 Foundation | Tooling, tokens, fonts, schemas, MSW, router + guards, AppShell, Storybook Foundations | done |
 | 1 Primitives + live data | Primitives, LiveIndicator, WS client + batching, seeded simulator, quality rules | done; Tabs, Dialog, Drawer and Toast move to phase 4 with their first consumers |
 | 2 Overview | StatCard, BarChart, RadialGauge, QualityBlocks, IDW mini-map, Overview page | done |
-| 3 Map + analytics | HeatMap + worker, LineChart, Lollipop, ChartFrame, virtual tables | not started |
-| 4 Alerts, health, devices | AlertRow, Drawer + timeline, health, devices + key flows | not started |
-| 5 Public, reports, settings, simulator | — | not started |
-| 6 Hardening | axe, keyboard, perf, docs | not started |
+| 3 Map + analytics | HeatMap + worker, LineChart, virtual tables, Map and Analytics pages | done (LollipopChart not needed by any page yet) |
+| 4 Alerts, health, devices | AlertRow, Drawer + timeline, health, devices + key flows | done |
+| 5 Public, reports, settings, simulator | Public portal and map, Reports, Settings, Simulator | done |
+| 6 Hardening | Keyboard-only passes, public bundle under 200 KB, tables as cards below 640 px, Lighthouse | next |
 
 ## Open questions and conflicts
 
@@ -73,8 +73,13 @@ As specified in brief §4. `src/mocks/` holds the seeded simulator (`sim/`), the
 
 ## TODO register
 
-Every `TODO` in source must have a line here.
+Every `TODO` in source must have a line here. None are open.
 
-- `TODO(phase-3)`: placeholder pages for Map, Analytics. Replace with real pages.
-- `TODO(phase-4)`: placeholder pages for Alerts, Health, Devices.
-- `TODO(phase-5)`: placeholder pages for Reports, Settings, Simulator, Public map.
+## Phase 6 backlog
+
+- A lean public entry so `/public` loads under 200 KB gzipped (it currently shares the operator bundle).
+- Tables become cards below 640 px.
+- Keyboard-only walkthrough of journeys 1 and 2, recorded.
+- Lighthouse on the public portal (mid-range mobile).
+- Storybook stories for the phase 3–5 components.
+- Diff every component against the missing `design/components/*.md` specs once they arrive (Q1).

@@ -44,3 +44,31 @@ The Overview gauge shows the site with the highest current PM2.5 (the one that m
 ## 2026-11-11 · IDW coverage radius 3.2 km on the Overview
 
 Lagos sites in the mock sit 3–6 km apart. A 3.2 km radius (opaque to 1.76 km, fading to zero at 3.2 km) leaves visible gaps between sparse sites instead of painting confident colour where no sensor is. This is principle 4 working as intended. It is configurable per map.
+
+## 2026-11-11 · Basemap: Esri Dark Gray Canvas instead of CARTO
+
+The brief suggests CARTO Dark Matter without labels. CARTO's tile servers now return an "API key required" image. Esri's Dark Gray Canvas has the same structure (a label-free base plus a separate reference-labels layer, drawn above the heat surface), needs no key, and permits this use with attribution, which the map shows. Swap the two URLs in `HeatMap.tsx` if the project gets a CARTO key.
+
+## 2026-11-11 · Raw readings for one device, up to 24 h
+
+`/measurements` serves raw rows for one device and metric over at most 24 h (8,640 rows at the 10 s cadence). Longer ranges and site means use `/measurements/aggregates`, with a bucket chosen from the span (1 m, 15 m, 1 h, 6 h, 1 d). The chart and table say which they show. This keeps the browser and API bounded and matches FR-012.
+
+## 2026-11-11 · LineChart stays SVG, thinned with LTTB to about one point per pixel
+
+The brief suggests Canvas above roughly 2,000 points. With LTTB thinning to the plot width (display only; tables, aggregates and tooltips use every point), SVG stays well within budget and keeps per-element accessibility. Canvas remains the plan if we ever draw several dense series at once.
+
+## 2026-11-11 · IDW worker requests are coalesced
+
+One grid job is in flight per map; the newest request waits behind it and every result is drawn. Cells clearly beyond coverage (flat-earth distance with a 5 % margin) are skipped before the exact haversine IDW, which still computes every drawn cell, so the 1e-9 acceptance test is unaffected.
+
+## 2026-11-11 · Mock alerts resolve after acknowledgement
+
+To show the whole lifecycle (PRD journey 2) without waiting for the model's air to clear, the mock resolves an acknowledged environmental alert about 12 s later and pushes `alert.resolved` over the socket. Device alerts stay open until the device recovers.
+
+## 2026-11-11 · Public hero number at 64 px
+
+The public portal's headline reading is set at 64 px mono (`text-[64px]`), larger than `reading-xl`. It is the one number a resident came for, read on a phone at arm's length. Proposal: add a `reading-2xl` token (64/64, 500, −0.02em).
+
+## 2026-11-11 · Tenant switch by query parameter
+
+`/devices?organization_id=…` passes the organization to the API, for administrators who belong to more than one tenant. The API refuses other tenants (403), and the page shows "You don't have access to this. Ask an administrator". Journey 5 tests this. A proper organization switcher waits for the users/organizations contract.

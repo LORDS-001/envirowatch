@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-11-11 · Phases 3–5 (all remaining screens)
+
+**Screens**
+- **Environmental map** (`/map`): full-bleed Leaflet map (Esri Dark Gray Canvas, labels drawn above the surface), IDW surface on its own canvas pane computed in a worker, metric picker, include-suspicious toggle, 24 h time scrubber, ranked site list, site panel (measured value, state, latest per metric, sensors needing a look, link to analytics), legend and method caption, and keyboard-reachable markers whose state is shape plus words.
+- **Historical analytics** (`/analytics`): metric, site and device filters, 1 h / 24 h / 7 d / 30 d / custom ranges, compare up to 4 series, LineChart (gaps break the line, suspicious points are hollow diamonds kept out of it, crosshair with event and received time), aggregate min/max/mean/count, and a virtualised raw-readings table with event time, received time, lateness, quality and reading ID. The Export button carries the selection to Reports.
+- **Alerts** (`/alerts`, `/alerts/:id`): state, kind and site filters; a drawer with the lifecycle timeline (crossed, Pending, Active, each notification and its outcome, Acknowledged, Resolved, with the resolve rule), a per-minute context chart with the opening marked, sensors at the site with live quality, and Acknowledge. Device alerts carry a left rule and a "Device" kind label.
+- **Sensor health** (`/health`): online, silent, drifting and suspicious counts; the valid-reading half-donut; pipeline metrics (ingest rate, queue depth, error rate, DB writes, p50/p95/p99); sensors needing a look sorted by severity; the live `sensor.fault_detected` feed; reading quality.
+- **Devices** (`/devices`, `/devices/:id`): Organization → Site → Device tree, a virtualised table with checkbox selection, bulk deactivate, and register (the key is shown once, with copy and a warning). Detail page: metadata, edit, rotate key (confirm, then the new key once), deactivate or reactivate, live readings with quality and event/received time, health timeline, ingestion outcomes.
+- **Reports** (`/reports`): metrics, range (presets or custom), sites (filterable, or all), CSV or PDF, quality-notes switch, and session job rows (Preparing, Ready with download and size, Failed with reason). Exports state units, range (UTC) and quality notes.
+- **Settings** (`/settings/*`, admin): organization; users and roles (invite, change role); sites (add, with coordinate validation); alert rules (threshold or unusual change, hysteresis, consecutive readings, cooldown, channels, enabled; a plain-language summary of each rule; Save only when changed); retention (raw ≤ hourly ≤ daily enforced, with a storage estimate).
+- **Simulator** (`/simulator`, admin): baseline, one-hour fault injection or custom mix; seed; 60× or 360× speed; pause, resume and stop (confirmed); simulated clock and progress; injected, detected, missed and false-alert counts; recall = TP/(TP+FN) and precision = TP/(TP+FP) with their working; mean time to detect; ground truth against detections; CSV evaluation export.
+- **Public portal** (`/public`, `/public/map`, no sign-in): pill nav with the lockup; "Air is moderate in Yaba this afternoon" with an area picker; big PM2.5 and temperature with advice; every area with its band shape and word; 24 h city trend; CSV download; "What do these numbers mean?" with the bands and how readings are checked; public map with metric picker, legend and method caption.
+
+**Shared**: Dialog and ConfirmDialog, Drawer, Toast, TextField, SelectField, InlineSelect, Checkbox, Switch, Segmented, KeyReveal, DataTable (TanStack Table + Virtual, keyboard rows, sorting, checkbox selection), LineChart (+ LTTB display thinning), HalfDonut, AlertTimeline, TreeSidebar, HeatMap.
+
+**Mock backend**: raw measurements (paged, up to 24 h), site and device aggregates (1 m to 1 d buckets), historical and suspicious-inclusive heatmaps, single alert, acknowledgement followed by resolution about 12 s later over the socket, device CRUD with keys, device health and ingestion outcomes, health summary, users, sites, rules, retention, CSV and PDF exports, simulator runs with a seeded ground-truth plan, and public trend, heatmap and CSV. Admin routes return 403 to operators.
+
+**Fixes found while checking the screens**
+- The full-map IDW grid takes over a second. The old hook dropped every result older than the newest request, so with live data changing each second the surface never drew. The hook now keeps one job in flight and queues only the newest request, and `computeGrid` skips cells clearly beyond coverage before running the exact IDW.
+- CARTO basemaps now need an API key. Switched to Esri Dark Gray Canvas (no key; attribution shown).
+- TanStack Table caches accessor values per row, so site names that loaded after the rows never appeared. Names now go into the row data.
+
+**Tests**: 56 unit and component tests. Playwright journeys 1–5 (register → key once → online; alert → acknowledge → resolved; public map without login; fault-injection evaluation; cross-tenant 403) and axe on 13 routes.
+
 ## 2026-11-11 · Phases 0–2 (foundation, live data, Overview)
 
 **Built**
