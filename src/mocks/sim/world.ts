@@ -31,6 +31,10 @@ export interface SimDevice {
   lng: number;
   /** Offset of this device's 10 s reporting slot, ms. */
   phaseMs: number;
+  /** Registered at runtime: no readings before this time. */
+  activeFrom?: number;
+  /** Deactivated: no readings from this time. */
+  deactivatedAt?: number | null;
 }
 
 // [name, lat, lng, PM2.5 base]
@@ -74,7 +78,7 @@ const SITE_TABLE: ReadonlyArray<readonly [string, number, number, number]> = [
   ["Sangotedo", 6.47, 3.63, 14],
   ["Ijora", 6.47, 3.365, 38],
   ["Apapa GRA", 6.449, 3.359, 28],
-  ["Apapa Port", 6.443, 3.365, 52],
+  ["Apapa Port", 6.443, 3.365, 58],
   ["Amuwo Odofin", 6.46, 3.3, 22],
   ["Festac", 6.467, 3.283, 20],
   ["Satellite Town", 6.45, 3.27, 21],

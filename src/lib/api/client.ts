@@ -51,7 +51,7 @@ function buildUrl(path: string, query?: Query): string {
 
 interface RequestOptions<T extends z.ZodType> {
   schema: T;
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   query?: Query;
   body?: unknown;
   signal?: AbortSignal;
@@ -101,6 +101,39 @@ export async function request<T extends z.ZodType>(path: string, opts: RequestOp
     throw new ContractError(path, parsed.error.message);
   }
   return parsed.data;
+}
+
+/** File downloads (CSV, PDF). Same auth and error handling as `request`, no schema. */
+export async function requestBlob(
+  path: string,
+  opts: { query?: Query; anonymous?: boolean; signal?: AbortSignal } = {},
+): Promise<{ blob: Blob; filename: string | null }> {
+  const headers: Record<string, string> = {};
+  const token = opts.anonymous ? null : getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path, opts.query), { headers, signal: opts.signal, credentials: "include" });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw err;
+    throw new ApiError(0, "Couldn't reach the server. Check your connection", path);
+  }
+  if (res.status === 401 && !opts.anonymous) {
+    onUnauthorized();
+    throw new ApiError(401, "Your session has ended. Sign in again", path);
+  }
+  if (!res.ok) {
+    let message = res.statusText || "Export failed";
+    try {
+      message = ((await res.json()) as { detail?: string }).detail ?? message;
+    } catch {
+      // Not JSON.
+    }
+    throw new ApiError(res.status, message, path);
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? null;
+  return { blob: await res.blob(), filename };
 }
 
 /** Human message for any error a query can throw. */

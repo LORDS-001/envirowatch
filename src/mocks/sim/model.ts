@@ -100,10 +100,12 @@ export function isSilent(s: Scenario, device: SimDevice, t: number): boolean {
 export function readingFor(world: World, s: Scenario, device: SimDevice, tick: number): SimReading | null {
   const t = emitTime(device, tick);
   if (isSilent(s, device, t)) return null;
+  if (device.activeFrom !== undefined && t < device.activeFrom) return null;
+  if (device.deactivatedAt && t >= device.deactivatedAt) return null;
   const faults: FaultKind[] = [];
   const seed = world.seed;
 
-  const spike = device.idx === s.spikeDevice && unit(seed, device.idx, tick, 31) < 0.04;
+  const spike = device.idx === s.spikeDevice && unit(seed, device.idx, tick, 31) < 0.012;
   const clock = device.idx === s.clockDevice;
   if (spike) faults.push("spike");
   if (clock) faults.push("clock_error");

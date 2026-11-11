@@ -25,6 +25,11 @@ function send(event: WsEvent) {
   live.broadcast(JSON.stringify(event));
 }
 
+/** Lets REST handlers push events, e.g. an alert resolving after acknowledgement. */
+export function broadcastEvent(event: WsEvent) {
+  if (live.clients.size > 0) send(event);
+}
+
 function step() {
   const { world, scenario } = mockState();
   const now = Date.now();
@@ -38,6 +43,13 @@ function step() {
       const r = readingFor(world, scenario, d, tick);
       if (!r) continue;
       for (const at of deliveryPlan(world, scenario, r)) pending.push({ at, rows: r.rows });
+      // The backend's detectors flag spikes as they arrive (sensor.fault_detected).
+      if (r.faults.includes("spike")) {
+        send({
+          type: "sensor.fault_detected",
+          data: { device_id: d.id, fault_type: "spike", severity: "warn", detected_at: new Date(r.emitAt + 2000).toISOString() },
+        });
+      }
     }
   }
   lastT = now;
@@ -72,5 +84,17 @@ function stopIfIdle() {
 
 export const liveHandler = live.addEventListener("connection", ({ client }) => {
   start();
+  // Faults already open when this client connects.
+  const { scenario, world } = mockState();
+  const silent = world.devices[scenario.silentDevice];
+  if (silent) {
+    // After the socket has opened on the client side.
+    setTimeout(() => client.send(
+      JSON.stringify({
+        type: "sensor.fault_detected",
+        data: { device_id: silent.id, fault_type: "silent", severity: "critical", detected_at: new Date(scenario.silentSince + 60_000).toISOString() },
+      } satisfies WsEvent),
+    ), 250);
+  }
   client.addEventListener("close", () => setTimeout(stopIfIdle, 0));
 });

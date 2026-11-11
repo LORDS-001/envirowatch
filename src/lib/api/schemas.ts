@@ -158,6 +158,119 @@ export const PublicSummarySchema = z.object({
   areas: z.array(PublicAreaSchema),
 });
 
+// ---- Device health, ingestion and credentials ----
+
+export const DeviceHealthStatusSchema = z.enum(["online", "silent", "drifting", "suspicious", "deactivated"]);
+export const FaultTypeSchema = z.enum(["silent", "drift", "spike", "clock_error", "duplicate", "late", "network"]);
+
+export const DeviceHealthEventSchema = z.object({
+  device_id: z.string(),
+  fault_type: FaultTypeSchema,
+  severity: z.enum(["warn", "critical"]),
+  detected_at: isoDate,
+  /** GAP: human-readable detail, e.g. "+4.2 µg/m³ against neighbours over 6 h". */
+  detail: z.string().nullable().optional(),
+});
+
+export const DeviceHealthSchema = z.object({
+  device_id: z.string(),
+  health: DeviceHealthStatusSchema,
+  last_seen_at: isoDate.nullable(),
+  events: z.array(DeviceHealthEventSchema),
+});
+
+/** GAP: GET /health/devices, one row per device for the health page. */
+export const HealthSummaryItemSchema = z.object({
+  device_id: z.string(),
+  site_id: z.string(),
+  health: DeviceHealthStatusSchema,
+  last_seen_at: isoDate.nullable(),
+  latest_event: DeviceHealthEventSchema.nullable(),
+});
+
+/** GAP: GET /devices/{id}/ingestion-events (the ingestion_events table). */
+export const IngestionEventSchema = z.object({
+  device_id: z.string(),
+  reading_id: z.string(),
+  outcome: z.enum(["accepted", "duplicate", "late", "quarantined", "rejected"]),
+  reason: z.string().nullable(),
+  received_at: isoDate,
+});
+
+/** POST /devices: the key is returned once, never again. */
+export const DeviceWithKeySchema = z.object({ device: DeviceSchema, api_key: z.string() });
+export const RotatedKeySchema = z.object({ device_id: z.string(), api_key: z.string(), rotated_at: isoDate });
+
+// ---- Admin resources (GAP) ----
+
+export const ChannelSchema = z.enum(["email", "sms", "webhook"]);
+
+export const AlertRuleSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  metric: MetricIdSchema,
+  kind: z.enum(["threshold", "unusual_change"]),
+  /** Threshold value, or for unusual change the % jump that triggers. */
+  threshold: z.number(),
+  hysteresis: z.number(),
+  consecutive_readings: z.number().int(),
+  cooldown_min: z.number().int(),
+  channels: z.array(ChannelSchema),
+  enabled: z.boolean(),
+});
+
+export const RetentionSchema = z.object({
+  raw_days: z.number().int(),
+  hourly_days: z.number().int(),
+  daily_days: z.number().int(),
+  ingestion_events_days: z.number().int(),
+});
+
+// ---- Simulator (GAP) ----
+
+export const SimFaultSchema = z.enum(["duplicate", "late", "silent", "clock_error", "spike", "drift", "network"]);
+
+export const SimEventSchema = z.object({
+  id: z.string(),
+  fault_type: SimFaultSchema,
+  device_id: z.string(),
+  /** Simulated seconds since the run started. */
+  injected_s: z.number(),
+  detected_s: z.number().nullable(),
+  outcome: z.enum(["detected", "missed", "pending"]),
+});
+
+export const SimFalseAlertSchema = z.object({
+  id: z.string(),
+  device_id: z.string(),
+  fault_type: SimFaultSchema,
+  detected_s: z.number(),
+});
+
+export const SimRunSchema = z.object({
+  id: z.string(),
+  scenario: z.enum(["baseline", "fault_hour", "custom"]),
+  seed: z.number().int(),
+  faults: z.array(SimFaultSchema),
+  speed: z.number(),
+  status: z.enum(["running", "paused", "stopped", "completed"]),
+  started_at: isoDate,
+  elapsed_s: z.number(),
+  duration_s: z.number(),
+  events: z.array(SimEventSchema),
+  false_alerts: z.array(SimFalseAlertSchema),
+});
+
+export const SimStatusSchema = z.object({ run: SimRunSchema.nullable() });
+
+// ---- Public (GAP) ----
+
+export const PublicTrendSchema = z.object({
+  metric: MetricIdSchema,
+  unit: z.string(),
+  points: z.array(z.object({ bucket_start: isoDate, avg: z.number() })),
+});
+
 /** GAP: cursor pagination envelope. */
 export const page = <T extends z.ZodType>(item: T) =>
   z.object({ items: z.array(item), next_cursor: z.string().nullable() });
