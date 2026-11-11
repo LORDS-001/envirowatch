@@ -94,6 +94,7 @@
 .type-label { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 500; }
 .type-eyebrow { font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
 .type-reading-xl { font-family: var(--font-mono); font-size: 36px; line-height: 40px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; }
+.type-reading-2xl { font-family: var(--font-mono); font-size: 64px; line-height: 64px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums lining-nums; }
 .type-reading-md { font-family: var(--font-mono); font-size: 20px; line-height: 24px; font-weight: 500; font-variant-numeric: tabular-nums lining-nums; }
 .type-data { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 400; font-variant-numeric: tabular-nums lining-nums; }
 

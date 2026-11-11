@@ -102,6 +102,10 @@
   --text-reading-xl--line-height: 40px;
   --text-reading-xl--font-weight: 500;
   --text-reading-xl--letter-spacing: -0.02em;
+  --text-reading-2xl: 64px;
+  --text-reading-2xl--line-height: 64px;
+  --text-reading-2xl--font-weight: 500;
+  --text-reading-2xl--letter-spacing: -0.02em;
   --text-reading-md: 20px;
   --text-reading-md--line-height: 24px;
   --text-reading-md--font-weight: 500;

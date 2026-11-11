@@ -108,6 +108,11 @@ export const Type: Story = {
         </p>
       ))}
       <p className="flex items-baseline gap-2">
+        <span className="num text-reading-2xl">23.4</span>
+        <span className="text-body text-fg-muted">µg/m³</span>
+        <span className="text-body-sm text-fg-muted">Reading 2XL 64/64: the public portal’s one headline number</span>
+      </p>
+      <p className="flex items-baseline gap-2">
         <span className="num text-reading-xl">31.4</span>
         <span className="text-body-sm text-fg-muted">°C</span>
         <span className="text-body-sm text-fg-muted">Reading XL: IBM Plex Mono, tabular figures</span>

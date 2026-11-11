@@ -70,7 +70,7 @@ export default function PublicHomePage() {
           ))}
         </select>
         {!area || !pm || !band ? (
-          <Skeleton className="mt-6 h-40 max-w-xl" />
+          <HeroSkeleton />
         ) : (
           <>
             <h1 id="hero-title" className="mt-6 max-w-[20ch] text-display-lg text-fg sm:text-display-xl">
@@ -79,7 +79,7 @@ export default function PublicHomePage() {
             <div className="mt-6 flex flex-wrap items-end gap-x-12 gap-y-6">
               <div>
                 <p className="flex items-baseline gap-2">
-                  <span className="num text-[64px] leading-none font-medium tracking-tight text-fg">{formatMetricValue(pm.value, "pm25")}</span>
+                  <span className="num text-reading-2xl text-fg">{formatMetricValue(pm.value, "pm25")}</span>
                   <span className="text-body-lg text-fg-muted">{METRICS.pm25.unit}</span>
                 </p>
                 <p className="mt-2 text-body-lg text-fg-secondary">Fine particles (PM2.5)</p>
@@ -245,5 +245,34 @@ function TrendSection() {
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * The hero's shape while readings load, line for line in the same type sizes (1lh = one line),
+ * so the areas below don't jump when the numbers arrive.
+ */
+function HeroSkeleton() {
+  const line = "h-[0.8lh] my-[0.1lh]";
+  return (
+    <div aria-hidden="true">
+      <div className="mt-6 max-w-[20ch] text-display-lg sm:text-display-xl">
+        <Skeleton className={line} />
+        <Skeleton className={cn(line, "w-3/5")} />
+      </div>
+      <div className="mt-6 text-reading-2xl">
+        <Skeleton className={cn(line, "w-[4ch]")} />
+      </div>
+      <div className="mt-2 text-body-lg">
+        <Skeleton className={cn(line, "w-48")} />
+      </div>
+      <div className="mt-6 max-w-[60ch] text-body-lg">
+        <Skeleton className={line} />
+        <Skeleton className={cn(line, "w-2/3")} />
+      </div>
+      <div className="mt-3 text-body">
+        <Skeleton className={cn(line, "w-64 max-w-full")} />
+      </div>
+    </div>
   );
 }
