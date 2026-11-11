@@ -1,0 +1,42 @@
+/* Leaflet chrome in EnviroWatch tokens. Loaded only with the map. */
+.leaflet-container {
+  background: var(--bg-sunken);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+}
+.leaflet-container :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.leaflet-bar {
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-pill) !important;
+  overflow: hidden;
+  box-shadow: none !important;
+}
+.leaflet-bar a {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  background: var(--surface-1) !important;
+  color: var(--text-secondary) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+.leaflet-bar a:hover {
+  background: var(--surface-2) !important;
+  color: var(--text-primary) !important;
+}
+.leaflet-control-attribution {
+  background: var(--bg-sunken) !important;
+  color: var(--text-muted) !important;
+  font-size: 11px;
+}
+/* Links inside running text need more than colour to stand out (WCAG 1.4.1). */
+.leaflet-control-attribution a {
+  color: var(--text-secondary) !important;
+  text-decoration: underline;
+}
+.leaflet-marker-icon.ew-marker {
+  background: none;
+  border: 0;
+}
