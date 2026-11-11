@@ -26,7 +26,7 @@ Mock mode is on by default. A seeded simulator streams 1,000 devices across 46 L
 | `npm run build` | Typecheck and production build |
 | `npm run check` | Typecheck, lint and unit tests |
 | `npm test` | Unit and component tests (Vitest) |
-| `npm run e2e` | End-to-end and accessibility tests (Playwright + axe); starts its own server on port 5174 |
+| `npm run e2e` | End-to-end and accessibility tests (Playwright + axe), including keyboard-only journeys; starts its own server on port 5174. `RECORD=1` saves videos of the keyboard walkthroughs |
 
 ## Environment
 
@@ -59,4 +59,4 @@ REST ──► api client ──(Zod)──► TanStack Query ──► pages
 
 ## Status
 
-All screens are built against the mocked contract: Overview, Map, Analytics, Alerts, Health, Devices, Reports, Settings, Simulator and the public portal. Phase 6 (hardening) is next; see `docs/FRONTEND_PLAN.md` and `docs/CHANGELOG.md`.
+All screens are built against the mocked contract: Overview, Map, Analytics, Alerts, Health, Devices, Reports, Settings, Simulator and the public portal. Phase 6 (hardening: phone layouts, keyboard-only journeys, Lighthouse, Storybook) is done; what's open is in `docs/FRONTEND_PLAN.md`, and the history in `docs/CHANGELOG.md`.

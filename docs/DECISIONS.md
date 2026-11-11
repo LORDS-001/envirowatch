@@ -2,9 +2,9 @@
 
 Dated, one paragraph each. Judgement calls, library choices and deviations from the brief.
 
-## 2026-11-11 · Built from the brief’s §6 because the component specs never arrived
+## 2026-11-11 · Built from the brief’s §6; the brief is the component spec
 
-The kickoff paste was truncated at 50,000 characters, so `design/components/*.md`, `OverviewScreen.md`, `templates-map.md` and `component-reference.css` are missing. Components follow the brief’s §5–6 (sizes, radii, surfaces, states), the tokens and the principles, which together pin down most decisions. Each component gets diffed against its spec once the files arrive.
+The kickoff paste was truncated at 50,000 characters, so `design/components/*.md`, `OverviewScreen.md`, `templates-map.md` and `component-reference.css` looked missing. The product owner confirmed (2026-11-11) that those files don’t exist. The brief’s §5–6 (sizes, radii, surfaces, states), the tokens and the principles are the spec, and there is no separate diff to do.
 
 ## 2026-11-11 · ESLint 9, not 10
 
@@ -35,7 +35,7 @@ The arrow-key-navigable bar chart uses `role="slider"` with `aria-valuetext` (�
 
 ## 2026-11-11 · QualityBlocks stacks only non-valid readings
 
-The brief describes stacked blocks per day of valid, estimated, suspicious and missing. Valid readings run near 97 % every day, so a proportional stack is a solid bar with slivers on top, and days can’t be compared (principle 1 outranks the look). Each column now stacks only estimated, suspicious and missing on their own labelled percentage axis, with the valid share printed as a mono number above each day. The table view gives exact shares. Needs a nod from design.
+The brief describes stacked blocks per day of valid, estimated, suspicious and missing. Valid readings run near 97 % every day, so a proportional stack is a solid bar with slivers on top, and days can’t be compared (principle 1 outranks the look). Each column now stacks only estimated, suspicious and missing on their own labelled percentage axis, with the valid share printed as a mono number above each day. The table view gives exact shares. Approved by the product owner on 2026-11-11. On phones the per-day valid share drops to whole percentages so seven numbers fit side by side.
 
 ## 2026-11-11 · Radial gauge site defaults to the highest reading
 
@@ -65,10 +65,27 @@ One grid job is in flight per map; the newest request waits behind it and every 
 
 To show the whole lifecycle (PRD journey 2) without waiting for the model's air to clear, the mock resolves an acknowledged environmental alert about 12 s later and pushes `alert.resolved` over the socket. Device alerts stay open until the device recovers.
 
-## 2026-11-11 · Public hero number at 64 px
+## 2026-11-11 · `reading-2xl` token for the public hero number
 
-The public portal's headline reading is set at 64 px mono (`text-[64px]`), larger than `reading-xl`. It is the one number a resident came for, read on a phone at arm's length. Proposal: add a `reading-2xl` token (64/64, 500, −0.02em).
+The public portal's headline reading is 64 px mono, larger than `reading-xl`. It is the one number a resident came for, read on a phone at arm's length. Approved by the product owner on 2026-11-11 and added as `reading-2xl` (64/64, 500, −0.02em) in `tokens.css` and `tailwind-theme.css` (both copies). It replaces the hard-coded `text-[64px]`. Use it only for a page's single headline reading.
 
 ## 2026-11-11 · Tenant switch by query parameter
 
 `/devices?organization_id=…` passes the organization to the API, for administrators who belong to more than one tenant. The API refuses other tenants (403), and the page shows "You don't have access to this. Ask an administrator". Journey 5 tests this. A proper organization switcher waits for the users/organizations contract.
+
+## 2026-11-11 · Tables become cards below 640 px
+
+`DataTable` switches layout itself (`useMediaQuery`, below Tailwind's `sm`), so every table gets it without page changes. Each row becomes a card: one title column on top (the first column, or the one marked `meta.cardTitle`) and every other column as a labelled field. Column headers aren't visible in cards, so sorting moves to a select plus a direction button, and "Select all" becomes a labelled checkbox. Cards stay virtualised with measured heights. On the Devices page below 1024 px, the 46-site tree is replaced by a site picker so the list isn't pushed a screen down.
+
+## 2026-11-11 · Keyboard: a grid and a tree are one tab stop each
+
+The keyboard-only walkthrough found two places where Tab walked through everything. **Grids:** row checkboxes and row links were each tab stops, although the grid already selects with Space and opens with Enter. Where the grid's keys cover them (checkboxes when selectable, links when `onRowOpen` is set), they now leave the tab order; other controls in cells stay reachable. Sensor health gained Enter-to-open so its device links are still reachable. **Site tree:** it was two tab stops per site (93 on Devices). It is now an ARIA tree with a roving tab stop: ↑ ↓ move, → expands or enters, ← collapses or goes up, Home/End, and Enter or Space selects. The expand chevron stays as a mouse affordance outside the tab order.
+
+## 2026-11-11 · Focus returns to main when the opener is gone
+
+Radix returns focus to whatever opened a dialog or drawer. When that element no longer exists (a resolved alert leaves the open-alerts list, a Deactivate button becomes Reactivate), focus dropped to `<body>`, and the next Tab started from the top of the page. Dialogs and drawers now fall back to `main#main`, which already takes focus for the skip link.
+
+## 2026-11-11 · `tabIndex` allowed on `role="region"`
+
+A scrolling area must take focus so it scrolls from the keyboard (WCAG 2.1.1; axe `scrollable-region-focusable`). The card list is such a region, so `jsx-a11y/no-noninteractive-tabindex` now allows `region` next to its default `tabpanel`.
+

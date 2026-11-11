@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-11-11 · Phase 6 (hardening)
+
+**Phones**
+- Tables become cards below 640 px: a title line, then each column as a labelled field. Sorting moves to a select; selection keeps a "Select all" checkbox.
+- Devices below 1024 px uses a site picker instead of the 46-site tree.
+- The reading-quality chart fits seven days at 375 px (whole percentages on phones).
+- Checked at 375 px: no page scrolls sideways.
+
+**Keyboard**
+- `e2e/keyboard.spec.ts` runs journeys 1 and 2 with the keyboard alone and checks that every stop shows a focus ring. `RECORD=1` saves a video of each.
+- The site tree is an ARIA tree with one tab stop (it was 93).
+- Grids are one tab stop: row checkboxes and row links are reached with Space and Enter. Sensor health opens a device with Enter.
+- Dialogs and drawers return focus to `main` when the element that opened them is gone (for example, a resolved alert that left the list).
+
+**Fixes**
+- Line charts over long ranges drew no line. Gaps were detected after thinning, and thinned neighbours sit minutes apart, so every point became its own segment. Gaps are now found on every reading, then each segment is thinned. Covered by new tests.
+- The public home page jumped by 0.48 CLS when readings arrived. Its loading placeholder now has the hero's shape, line for line.
+- Added `robots.txt` (index the public portal only).
+
+**Design system**
+- New token `reading-2xl` (64/64, 500, −0.02em) for the public portal's headline number, replacing a hard-coded size.
+- The QualityBlocks deviation is approved; the brief's §6 is confirmed as the component spec.
+
+**Storybook**
+- New stories: Forms (fields, checkbox, switch, segmented, range, search), Overlays (dialog, confirm, drawer, toast, key reveal, tooltip), Charts (bar, line with gaps and suspicious points, gauges, quality blocks, DataTable at desktop and phone width, loading and empty), Domain and maps (stat cards, alert rows and timeline, live indicator, site tree, legends, IDW mini-map, heat map).
+
 ## 2026-11-11 · Phases 3–5 (all remaining screens)
 
 **Screens**

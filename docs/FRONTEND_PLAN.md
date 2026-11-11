@@ -1,12 +1,12 @@
 # EnviroWatch frontend plan
 
-Status: Phases 0–5 done (2026-11-11); phase 6 (hardening) remains. This plan follows `CLAUDE_CODE_PROMPT.md`; where the two differ, the brief wins and the difference is logged in `DECISIONS.md`.
+Status: Phases 0–6 done (2026-11-11). Open: the backend contract (Q5, API_GAPS) and the Lighthouse performance follow-up below. This plan follows `CLAUDE_CODE_PROMPT.md`; where the two differ, the brief wins and the difference is logged in `DECISIONS.md`.
 
 ## Inputs actually received
 
 The kickoff brief was pasted inline and was truncated at 50,000 characters. Received in full: the brief (§0–17), `design/tokens.css`, `design/tailwind-theme.css`, `design/principles.md`, all logo SVGs, and the six template images. Received in part: `design/brand-book.md` (stops inside “Colour”). **Not received:** `design/templates-map.md`, `design/components/*.md` (including `OverviewScreen.md`), `design/reference/component-reference.css`, `design/tokens.json`, and the Overview target screenshot.
 
-Consequence: components are built from the brief’s §6 specs, which give anatomy, sizes, radii and states for every component. When the missing files arrive, each component is diffed against its spec and corrected (tracked below as Q1).
+Consequence: components are built from the brief’s §6 specs, which give anatomy, sizes, radii and states for every component. The product owner confirmed the other files don’t exist, so §6 is the spec (Q1, closed).
 
 ## Route map
 
@@ -61,25 +61,28 @@ As specified in brief §4. `src/mocks/` holds the seeded simulator (`sim/`), the
 | 3 Map + analytics | HeatMap + worker, LineChart, virtual tables, Map and Analytics pages | done (LollipopChart not needed by any page yet) |
 | 4 Alerts, health, devices | AlertRow, Drawer + timeline, health, devices + key flows | done |
 | 5 Public, reports, settings, simulator | Public portal and map, Reports, Settings, Simulator | done |
-| 6 Hardening | Keyboard-only passes, public bundle under 200 KB, tables as cards below 640 px, Lighthouse | next |
+| 6 Hardening | Keyboard-only passes, public bundle under 200 KB, tables as cards below 640 px, Lighthouse, Storybook | done; Lighthouse performance follow-up open |
 
 ## Open questions and conflicts
 
-- **Q1. Missing design files** (see “Inputs actually received”). Needed to verify component fidelity.
-- **Q2. `bg-sunken` scrim at 60 %.** No token gives that alpha. Proposed: `bg-sunken/60` (Tailwind opacity modifier on a token, not a new colour). Logged in DECISIONS.
+- **Q1. Missing design files.** Closed 2026-11-11: they don’t exist; the brief’s §6 is the spec.
+- **Q2. `bg-sunken` scrim at 60 %.** No token gives that alpha. Uses `bg-sunken/60` (Tailwind opacity modifier on a token, not a new colour). Logged in DECISIONS.
 - **Q3. Eyebrow style vs the frontend-design guidance against all-caps labels.** The brand defines `eyebrow` as the only uppercase style, so the brief wins. It is used sparingly: card kicker lines only, never above every heading.
-- **Q4. QualityBlocks deviation.** The chart stacks only non-valid readings; see DECISIONS. Needs design sign-off.
+- **Q4. QualityBlocks deviation.** Closed 2026-11-11: approved; see DECISIONS.
 - **Q5. WebSocket auth** (API_GAPS #12) is undecided, and it blocks pointing the client at a real backend.
 
 ## TODO register
 
 Every `TODO` in source must have a line here. None are open.
 
-## Phase 6 backlog
+## Phase 6 (done 2026-11-11)
 
-- A lean public entry so `/public` loads under 200 KB gzipped (it currently shares the operator bundle).
-- Tables become cards below 640 px.
-- Keyboard-only walkthrough of journeys 1 and 2, recorded.
-- Lighthouse on the public portal (mid-range mobile).
-- Storybook stories for the phase 3–5 components.
-- Diff every component against the missing `design/components/*.md` specs once they arrive (Q1).
+- Public portal initial JS, excluding the mock backend: about 112 KB gzipped, under the 200 KB budget.
+- Tables become cards below 640 px (DataTable). No page scrolls sideways at 375 px.
+- Keyboard-only walkthrough of journeys 1 and 2: `e2e/keyboard.spec.ts`, which also checks every stop shows a focus ring. `RECORD=1` saves videos.
+- Lighthouse on the public portal (mobile, simulated mid-range, production build): accessibility 100, best practices 100, SEO 100, performance 42 (was 20). Fixed: layout shift 0.477 → 0.026, and a missing `robots.txt`. Performance: see the follow-up below.
+- Storybook stories for every phase 3–5 component: Forms, Overlays, Charts, Domain and maps.
+
+## Follow-up
+
+- **Lighthouse performance on `/public`.** Total blocking time is 2.55 s and LCP 5.3 s, measured with the mock backend running in the page. The mock alone is about 2.1 s of main-thread script on a throttled phone; the app's main chunk is about 1.4 s. Re-measure against the real API before acting. If blocking time is still high, give the public portal its own lean entry, so it doesn't parse the operator app's shared chunk.
