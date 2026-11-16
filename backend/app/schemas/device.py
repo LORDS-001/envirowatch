@@ -12,7 +12,7 @@ class DeviceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    site_id: uuid.UUID
+    site_id: str
     type: str
     status: DeviceStatus
     last_seen_at: datetime | None
@@ -21,13 +21,13 @@ class DeviceOut(BaseModel):
 
 class DeviceCreate(BaseModel):
     id: str = Field(pattern=r"^[A-Za-z0-9_-]{3,64}$")
-    site_id: uuid.UUID
+    site_id: str
     type: str = Field(min_length=1, max_length=50)
     metrics: list[MetricId] = Field(min_length=1)
 
 
 class DevicePatch(BaseModel):
-    site_id: uuid.UUID | None = None
+    site_id: str| None = None
     type: str | None = Field(default=None, min_length=1, max_length=50)
     status: DeviceStatus | None = None
     metrics: list[MetricId] | None = Field(default=None, min_length=1)

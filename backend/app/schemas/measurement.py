@@ -51,3 +51,14 @@ class SystemHealthOut(BaseModel):
     error_rate: float
     db_writes_per_s: float
     valid_rate_24h: float | None
+
+class QualityDayOut(BaseModel):
+    date: datetime
+    valid: int
+    estimated: int
+    suspicious: int
+    missing: int
+
+
+class QualitySummaryOut(BaseModel):
+    days: list[QualityDayOut]

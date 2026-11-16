@@ -12,7 +12,7 @@ class Device(Base):
     __tablename__ = "devices"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    site_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("sites.id"), nullable=False, index=True)
+    site_id: Mapped[str] = mapped_column(ForeignKey("sites.id"), nullable=False, index=True)
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     metrics: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)

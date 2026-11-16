@@ -1,7 +1,8 @@
+
+from datetime import datetime, timedelta, timezone
+from typing import Literal
 import json
 import uuid
-from datetime import datetime, timedelta
-from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, literal_column, select, tuple_
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import Device, Measurement, Site, User
-from app.schemas.measurement import AggregateOut, MeasurementOut, MeasurementPage, MetricId
+from app.schemas.measurement import AggregateOut, MeasurementOut, MeasurementPage, MetricId, QualityDayOut, QualitySummaryOut
 
 router = APIRouter(prefix="/measurements", tags=["measurements"])
 
@@ -32,7 +33,7 @@ def _decode_cursor(raw: str):
 
 
 def _scoped(user: User):
-    """Measurements restricted to the caller's organization."""
+    
     return (
         select(Measurement)
         .join(Device, Measurement.device_id == Device.id)
@@ -46,7 +47,7 @@ def list_measurements(
     from_: datetime = Query(alias="from"),
     to: datetime = Query(),
     device_id: str | None = None,
-    site_id: uuid.UUID | None = None,
+    site_id: str| None = None,
     metric: MetricId | None = None,
     cursor: str | None = None,
     limit: int = Query(1000, ge=1, le=10000),
@@ -85,7 +86,7 @@ def aggregates(
     bucket: Literal["1m", "15m", "1h", "6h", "1d"] = "1h",
     group_by: Literal["all", "site", "device"] = "all",
     device_id: str | None = None,
-    site_id: uuid.UUID | None = None,
+    site_id: str| None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -142,3 +143,38 @@ def aggregates(
         )
         for r in rows
     ]
+
+
+@router.get("/quality-summary", response_model=QualitySummaryOut)
+def quality_summary(
+    days: int = Query(7, ge=1, le=90),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    day = func.date_trunc("day", Measurement.event_time).label("day")
+    rows = db.execute(
+        select(day, Measurement.quality_status, func.count())
+        .select_from(Measurement)
+        .join(Device, Measurement.device_id == Device.id)
+        .join(Site, Device.site_id == Site.id)
+        .where(Site.organization_id == user.organization_id, Measurement.event_time >= since)
+        .group_by(day, Measurement.quality_status)
+        .order_by(day)
+    ).all()
+
+    by_day: dict[datetime, dict[str, int]] = {}
+    for d, status, n in rows:
+        by_day.setdefault(d, {})[status] = n
+    return QualitySummaryOut(
+        days=[
+            QualityDayOut(
+                date=d,
+                valid=c.get("valid", 0),
+                estimated=c.get("estimated", 0),
+                suspicious=c.get("suspicious", 0) + c.get("quarantined", 0),  # the contract has no "quarantined"
+                missing=0,  # placeholder: see below
+            )
+            for d, c in by_day.items()
+        ]
+    )

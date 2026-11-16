@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 class SiteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
+    id: str
     organization_id: uuid.UUID
     name: str
     latitude: float

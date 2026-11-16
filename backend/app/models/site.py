@@ -10,7 +10,7 @@ from app.db.base import Base
 class Site(Base):
     __tablename__ = "sites"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id"), nullable=False, index=True
     )

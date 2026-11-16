@@ -21,7 +21,7 @@ from app.schemas.device import (
 router = APIRouter(prefix="/devices", tags=["devices"])
 
 
-def _site_in_org(db: Session, site_id: uuid.UUID, user: User) -> Site:
+def _site_in_org(db: Session, site_id: str, user: User) -> Site:
     site = db.scalar(select(Site).where(Site.id == site_id, Site.organization_id == user.organization_id))
     if site is None:
         raise HTTPException(404, detail="Site not found")
@@ -41,7 +41,7 @@ def _device_in_org(db: Session, device_id: str, user: User) -> Device:
 
 @router.get("", response_model=DevicePage)
 def list_devices(
-    site_id: uuid.UUID | None = None,
+    site_id: str | None = None,
     organization_id: uuid.UUID | None = None,
     cursor: str | None = None,
     limit: int = Query(50, ge=1, le=500),

@@ -14,7 +14,7 @@ router = APIRouter(prefix="/sites", tags=["sites"])
 
 @router.get("", response_model=SitePage)
 def list_sites(
-    cursor: uuid.UUID | None = None,
+    cursor: str| None = None,
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
