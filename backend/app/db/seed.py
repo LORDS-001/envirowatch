@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.db.session import SessionLocal
-from app.models import Organization, Site, User
+from app.models import Organization, Site, User, Alert, AlertRule, NotificationAttempt
 
 ORG_NAME = "Lagos Community Sensor Network"
 DEMO_PASSWORD = "envirowatch-demo"
@@ -60,6 +60,12 @@ def seed() -> None:
             if sid not in existing_sites:
                 db.add(Site(id=sid, organization_id=org.id, name=name, latitude=lat, longitude=lon))
                 existing_sites.add(sid)
+        if db.get(AlertRule, "rule-pm25-high") is None:
+            db.add(AlertRule(
+                id="rule-pm25-high", organization_id=org.id, name="High PM2.5", metric="pm25",
+                kind="threshold", threshold=35, hysteresis=5, consecutive_readings=3,
+                cooldown_min=15, channels=["email"], enabled=True,
+            ))
 
         db.commit()
         print(f"Seed complete: {len(SITE_TABLE)} sites, {len(USERS)} users.")

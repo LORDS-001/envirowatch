@@ -4,6 +4,7 @@ from app.models.organization import Organization
 from app.models.refresh_token import RefreshToken
 from app.models.site import Site
 from app.models.user import User
+from app.models.alert import Alert, AlertRule, NotificationAttempt
 
 __all__ = [
     "Device", "DeviceCredential", "IngestionEvent", "Measurement",
