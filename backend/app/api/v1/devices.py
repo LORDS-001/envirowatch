@@ -1,3 +1,6 @@
+from app.models import IngestionEvent
+from app.schemas.health import DeviceHealthOut, IngestionEventOut
+from app.services.health import evaluate
 import uuid
 from datetime import datetime, timezone
 
@@ -125,3 +128,34 @@ def rotate_key(device_id: str, db: Session = Depends(get_db), admin: User = Depe
     db.add(DeviceCredential(device_id=device.id, key_hash=key_hash))
     db.commit()
     return RotatedKey(device_id=device.id, api_key=raw_key, rotated_at=now)
+
+@router.get("/{device_id}/health", response_model=DeviceHealthOut)
+def device_health(device_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    device = _device_in_org(db, device_id, user)
+    row = next(r for r in evaluate(db, user.organization_id) if r.device.id == device.id)
+    return DeviceHealthOut(
+        device_id=device.id, health=row.health, last_seen_at=device.last_seen_at, events=row.events
+    )
+
+
+@router.get("/{device_id}/ingestion-events", response_model=list[IngestionEventOut])
+def ingestion_events(
+    device_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _device_in_org(db, device_id, user)
+    rows = db.scalars(
+        select(IngestionEvent)
+        .where(IngestionEvent.device_id == device_id)
+        .order_by(IngestionEvent.id.desc())
+        .limit(limit)
+    )
+    return [
+        IngestionEventOut(
+            device_id=e.device_id, reading_id=e.reading_id or "", outcome=e.outcome,
+            reason=e.reason, received_at=e.received_at,
+        )
+        for e in rows
+    ]

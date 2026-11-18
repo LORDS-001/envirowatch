@@ -5,3 +5,5 @@ __pycache__/
 login.sh
 test_ingest.sh
 check.sh
+health.sh
+eval_health.py
