@@ -7,3 +7,4 @@ test_ingest.sh
 check.sh
 health.sh
 eval_health.py
+sys.sh
