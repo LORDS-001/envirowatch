@@ -8,3 +8,5 @@ check.sh
 health.sh
 eval_health.py
 sys.sh
+*.log
+loadtest.sh
