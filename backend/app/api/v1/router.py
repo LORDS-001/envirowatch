@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, devices,heatmap, ingest, measurements, sites, system, health, alerts
+from app.api.v1 import (
+    alerts, auth, devices, health, heatmap, ingest, measurements, reports, retention, sites, system,
+)
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -13,3 +15,5 @@ api_router.include_router(heatmap.router)
 api_router.include_router(health.router)
 api_router.include_router(alerts.router)
 api_router.include_router(alerts.rules_router)
+api_router.include_router(retention.router)
+api_router.include_router(reports.router)

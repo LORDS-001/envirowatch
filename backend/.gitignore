@@ -10,3 +10,5 @@ eval_health.py
 sys.sh
 *.log
 loadtest.sh
+newtest.sh
+newtest.py
