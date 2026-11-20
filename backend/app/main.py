@@ -7,21 +7,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
+from app.core.live import ALLOWED_ORIGINS, Hub, subscriber
 from app.workers.alert_loop import alert_loop
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(alert_loop())
+    hub = Hub()
+    app.state.hub = hub
+    tasks = [
+        asyncio.create_task(alert_loop()),
+        asyncio.create_task(subscriber(hub)),
+        asyncio.create_task(hub.heartbeat_loop()),
+    ]
     yield
-    task.cancel()
+    for t in tasks:
+        t.cancel()
 
 
 app = FastAPI(title="EnviroWatch API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

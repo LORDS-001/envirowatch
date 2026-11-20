@@ -19,3 +19,6 @@ def make_redis(timeout: float | None = 2.0) -> redis.Redis:
 @lru_cache
 def get_redis() -> redis.Redis:
     return make_redis()
+
+
+LIVE_CHANNEL = "live:events"

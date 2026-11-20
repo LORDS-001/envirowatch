@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Alert, AlertRule, Device, Measurement, NotificationAttempt, Organization, Site
 from app.services.health import evaluate
+from app.services.faults import publish_new_faults
 
 MIN_CORROBORATION = 2
 OPEN = ("pending", "active", "acknowledged")
@@ -117,7 +118,9 @@ def _environment_alerts(db: Session, org_id, now: datetime) -> None:
 
 def _device_alerts(db: Session, org_id, now: datetime) -> None:
     flagged = {}
-    for r in evaluate(db, org_id, now):
+    results = evaluate(db, org_id, now)
+    publish_new_faults(org_id, results)
+    for r in results:
         if r.health in ("silent", "drifting"):
             fault = "silent" if r.health == "silent" else "drift"
             detail = next((e.detail for e in r.events if e.fault_type == fault), None)

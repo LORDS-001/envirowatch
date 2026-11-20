@@ -5,18 +5,22 @@ import time
 from datetime import datetime, timezone
 
 import redis
+from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
-from app.core.queue import DEAD, GROUP, LATENCY_KEY, STREAM, make_redis
+from app.core.queue import DEAD, GROUP, LATENCY_KEY, LIVE_CHANNEL, STREAM, make_redis
 from app.db.session import SessionLocal
+from app.models import Device, Site
 from app.services.ingestion import Item, process_batch
 
 log = logging.getLogger("ingest-worker")
 
 BATCH = 200
-CONSUMER = os.environ.get("WORKER_NAME", "worker-1")  
+CONSUMER = os.environ.get("WORKER_NAME", "worker-1")  # give each extra worker its own name
 CLAIM_IDLE_MS = 30_000
 CLAIM_EVERY_S = 10
+
+ORG_CACHE: dict[str, str] = {}  # device id -> organization id (never changes)
 
 
 def ensure_group(r: redis.Redis) -> None:
@@ -44,9 +48,19 @@ def parse(entries):
     return items, ids, bad
 
 
-def write(items: list[Item]) -> None:
+def write(items: list[Item]):
     with SessionLocal() as db:
-        process_batch(db, items)
+        prepared = process_batch(db, items)
+        missing = {p.device_id for p in prepared} - ORG_CACHE.keys()
+        if missing:
+            rows = db.execute(
+                select(Device.id, Site.organization_id)
+                .join(Site, Device.site_id == Site.id)
+                .where(Device.id.in_(missing))
+            )
+            for device_id, org_id in rows:
+                ORG_CACHE[device_id] = str(org_id)
+    return prepared
 
 
 def record_latency(r: redis.Redis, items: list[Item]) -> None:
@@ -56,6 +70,38 @@ def record_latency(r: redis.Redis, items: list[Item]) -> None:
     pipe.lpush(LATENCY_KEY, *values)
     pipe.ltrim(LATENCY_KEY, 0, 4999)
     pipe.execute()
+
+
+def publish(r: redis.Redis, prepared) -> None:
+    pipe = r.pipeline()
+    count = 0
+    for p in prepared:
+        if p.outcome not in ("accepted", "late", "quarantined") or not p.rows:
+            continue
+        org = ORG_CACHE.get(p.device_id)
+        if org is None:
+            continue
+        data = [
+            {
+                "device_id": row["device_id"], "reading_id": row["reading_id"], "metric": row["metric"],
+                "value": row["value"], "unit": row["unit"],
+                "event_time": row["event_time"].isoformat(), "received_at": row["received_at"].isoformat(),
+                "quality_status": row["quality_status"], "quality_reason": row["quality_reason"],
+            }
+            for row in p.rows
+        ]
+        pipe.publish(LIVE_CHANNEL, json.dumps({"org": org, "type": "measurement.updated", "data": data}))
+        count += 1
+    if count:
+        pipe.execute()
+
+
+def after_commit(r: redis.Redis, items: list[Item], prepared) -> None:
+    try:
+        record_latency(r, items)
+        publish(r, prepared)
+    except redis.RedisError:
+        log.warning("could not record latency or publish live events")
 
 
 def handle(r: redis.Redis, entries) -> int:
@@ -69,9 +115,9 @@ def handle(r: redis.Redis, entries) -> int:
 
     if items:
         try:
-            write(items)
+            prepared = write(items)
             done += ids
-            record_latency(r, items)
+            after_commit(r, items, prepared)
         except OperationalError:
             log.exception("database unavailable; messages stay queued and will be retried")
             time.sleep(2)
@@ -79,9 +125,9 @@ def handle(r: redis.Redis, entries) -> int:
             log.exception("batch failed; retrying one by one")
             for msg_id, item in zip(ids, items):
                 try:
-                    write([item])
+                    prepared = write([item])
                     done.append(msg_id)
-                    record_latency(r, [item])
+                    after_commit(r, [item], prepared)
                 except OperationalError:
                     time.sleep(2)
                     break

@@ -9,4 +9,4 @@ celery
 argon2-cffi
 pyjwt
 pytest
-httpx
+httpxwebsockets
