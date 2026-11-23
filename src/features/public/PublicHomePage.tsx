@@ -13,17 +13,27 @@ import { Button } from "@/components/ui/Button";
 import { ErrorState, Skeleton } from "@/components/ui/Feedback";
 import { STATE_SHAPE, STATE_TEXT_CLASS, StateIcon } from "@/components/ui/StateIcon";
 import { BANDS, bandFor, partOfDay, usePublicSummary } from "./publicData";
+import { useNow } from "@/lib/hooks";
+import { staleAfterMs } from "@/lib/config";
 
 export default function PublicHomePage() {
   useEffect(() => {
     document.title = "Air near you | EnviroWatch";
   }, []);
   const summary = usePublicSummary();
-  const areas = useMemo(() => [...(summary.data?.areas ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [summary.data]);
+  const now = useNow();
+  const areas = useMemo(
+    () => [...(summary.data?.areas ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+    [summary.data],
+  );
   const [areaId, setAreaId] = useState("site-yaba");
   const area = areas.find((a) => a.site_id === areaId) ?? areas[0];
-  const pm = area?.readings.find((r) => r.metric === "pm25");
-  const temp = area?.readings.find((r) => r.metric === "temperature_c");
+  const pm = area?.readings.find(
+    (r) => r.metric === "pm25" && now - Date.parse(r.event_time) <= staleAfterMs,
+  );
+  const temp = area?.readings.find(
+    (r) => r.metric === "temperature_c" && now - Date.parse(r.event_time) <= staleAfterMs,
+  );
   const band = pm ? bandFor(pm.value) : null;
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -47,7 +57,13 @@ export default function PublicHomePage() {
   }
 
   if (summary.error) {
-    return <ErrorState title="Couldn’t load today’s readings" detail={`${errorMessage(summary.error)}. Try again in a minute.`} onRetry={() => void summary.refetch()} />;
+    return (
+      <ErrorState
+        title="Couldn’t load today’s readings"
+        detail={`${errorMessage(summary.error)}. Try again in a minute.`}
+        onRetry={() => void summary.refetch()}
+      />
+    );
   }
 
   return (
@@ -70,7 +86,18 @@ export default function PublicHomePage() {
           ))}
         </select>
         {!area || !pm || !band ? (
-          <HeroSkeleton />
+          summary.isLoading ? (
+            <HeroSkeleton />
+          ) : (
+            <div className="mt-6" role="status">
+              <h1 id="hero-title" className="text-h1">
+                No recent public readings
+              </h1>
+              <p className="mt-2 text-body-lg text-fg-secondary">
+                No approved sensor data is fresh enough to describe current conditions. Check again later.
+              </p>
+            </div>
+          )
         ) : (
           <>
             <h1 id="hero-title" className="mt-6 max-w-[20ch] text-display-lg text-fg sm:text-display-xl">
@@ -87,15 +114,26 @@ export default function PublicHomePage() {
               {temp && (
                 <div>
                   <p className="flex items-baseline gap-2">
-                    <span className="num text-reading-xl text-fg">{formatMetricValue(temp.value, "temperature_c")}</span>
+                    <span className="num text-reading-xl text-fg">
+                      {formatMetricValue(temp.value, "temperature_c")}
+                    </span>
                     <span className="text-body-lg text-fg-muted">°C</span>
                   </p>
                   <p className="mt-2 text-body-lg text-fg-secondary">Temperature</p>
                 </div>
               )}
             </div>
-            <p className={cn("mt-6 flex max-w-[60ch] items-start gap-2 text-body-lg", band.state === "normal" ? "text-fg" : STATE_TEXT_CLASS[band.state])}>
-              <StateIcon shape={STATE_SHAPE[band.state]} size={14} className={cn("mt-1", STATE_TEXT_CLASS[band.state])} />
+            <p
+              className={cn(
+                "mt-6 flex max-w-[60ch] items-start gap-2 text-body-lg",
+                band.state === "normal" ? "text-fg" : STATE_TEXT_CLASS[band.state],
+              )}
+            >
+              <StateIcon
+                shape={STATE_SHAPE[band.state]}
+                size={14}
+                className={cn("mt-1", STATE_TEXT_CLASS[band.state])}
+              />
               <span>{band.advice}</span>
             </p>
             <p className="mt-3 text-body text-fg-muted">
@@ -111,7 +149,10 @@ export default function PublicHomePage() {
           <h2 id="areas-title" className="text-h1 text-fg">
             Every area
           </h2>
-          <Link to="/public/map" className="inline-flex h-11 items-center gap-2 rounded-pill border border-line px-4 text-body-lg text-fg hover:bg-surface-2">
+          <Link
+            to="/public/map"
+            className="inline-flex h-11 items-center gap-2 rounded-pill border border-line px-4 text-body-lg text-fg hover:bg-surface-2"
+          >
             See the map
             <ArrowUpRight size={18} strokeWidth={1.5} aria-hidden="true" />
           </Link>
@@ -121,8 +162,12 @@ export default function PublicHomePage() {
         ) : (
           <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {areas.map((a) => {
-              const p = a.readings.find((r) => r.metric === "pm25");
-              const t = a.readings.find((r) => r.metric === "temperature_c");
+              const p = a.readings.find(
+                (r) => r.metric === "pm25" && now - Date.parse(r.event_time) <= staleAfterMs,
+              );
+              const t = a.readings.find(
+                (r) => r.metric === "temperature_c" && now - Date.parse(r.event_time) <= staleAfterMs,
+              );
               const b = p ? bandFor(p.value) : null;
               return (
                 <li key={a.site_id}>
@@ -134,21 +179,36 @@ export default function PublicHomePage() {
                     }}
                     className={cn(
                       "flex w-full items-center justify-between gap-4 rounded-lg border p-4 text-left hover:bg-surface-2",
-                      a.site_id === area?.site_id ? "border-brand bg-brand-subtle" : "border-line bg-surface-1",
+                      a.site_id === area?.site_id
+                        ? "border-brand bg-brand-subtle"
+                        : "border-line bg-surface-1",
                     )}
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-body-lg text-fg">{a.name}</span>
                       {b && (
-                        <span className={cn("mt-1 flex items-center gap-1 text-body", b.state === "normal" ? "text-fg-secondary" : STATE_TEXT_CLASS[b.state])}>
-                          <StateIcon shape={STATE_SHAPE[b.state]} size={10} className={STATE_TEXT_CLASS[b.state]} />
+                        <span
+                          className={cn(
+                            "mt-1 flex items-center gap-1 text-body",
+                            b.state === "normal" ? "text-fg-secondary" : STATE_TEXT_CLASS[b.state],
+                          )}
+                        >
+                          <StateIcon
+                            shape={STATE_SHAPE[b.state]}
+                            size={10}
+                            className={STATE_TEXT_CLASS[b.state]}
+                          />
                           {b.word[0]!.toUpperCase() + b.word.slice(1)}
                         </span>
                       )}
                     </span>
                     <span className="shrink-0 text-right">
-                      <span className="num block text-reading-md text-fg">{p ? formatMetricValue(p.value, "pm25") : "–"}</span>
-                      <span className="block text-body-sm text-fg-muted">{t ? formatReading(t.value, "temperature_c") : METRICS.pm25.unit}</span>
+                      <span className="num block text-reading-md text-fg">
+                        {p ? formatMetricValue(p.value, "pm25") : "–"}
+                      </span>
+                      <span className="block text-body-sm text-fg-muted">
+                        {t ? formatReading(t.value, "temperature_c") : METRICS.pm25.unit}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -166,9 +226,16 @@ export default function PublicHomePage() {
           Download the readings
         </h2>
         <p className="mt-2 max-w-[60ch] text-body-lg text-fg-secondary">
-          A spreadsheet (CSV) of every area’s latest PM2.5 and temperature, with the time of each reading in UTC.
+          A spreadsheet (CSV) of every area’s latest PM2.5 and temperature, with the time of each reading in
+          UTC.
         </p>
-        <Button className="mt-4" size="lg" onClick={() => void download()} loading={downloading} icon={<Download size={18} strokeWidth={1.5} aria-hidden="true" />}>
+        <Button
+          className="mt-4"
+          size="lg"
+          onClick={() => void download()}
+          loading={downloading}
+          icon={<Download size={18} strokeWidth={1.5} aria-hidden="true" />}
+        >
           Download CSV
         </Button>
         {downloadError && (
@@ -184,12 +251,18 @@ export default function PublicHomePage() {
           What do these numbers mean?
         </h2>
         <p className="mt-3 max-w-[60ch] text-body-lg text-fg-secondary">
-          PM2.5 is the weight of tiny particles, from traffic, generators, burning and dust, in a cubic metre of air. They’re small enough to reach deep into the lungs.
+          PM2.5 is the weight of tiny particles, from traffic, generators, burning and dust, in a cubic metre
+          of air. They’re small enough to reach deep into the lungs.
         </p>
         <ul className="mt-6 grid gap-3 sm:grid-cols-2">
           {BANDS.map((b) => (
             <li key={b.word} className="rounded-lg border border-line bg-surface-1 p-4">
-              <p className={cn("flex items-center gap-2 text-body-lg", b.state === "normal" ? "text-fg" : STATE_TEXT_CLASS[b.state])}>
+              <p
+                className={cn(
+                  "flex items-center gap-2 text-body-lg",
+                  b.state === "normal" ? "text-fg" : STATE_TEXT_CLASS[b.state],
+                )}
+              >
                 <StateIcon shape={STATE_SHAPE[b.state]} size={12} className={STATE_TEXT_CLASS[b.state]} />
                 {b.word[0]!.toUpperCase() + b.word.slice(1)}
                 <span className="num ml-auto text-data text-fg-muted">{b.range} µg/m³</span>
@@ -201,10 +274,22 @@ export default function PublicHomePage() {
         <details className="mt-6 max-w-[70ch] rounded-lg border border-line bg-surface-1 p-4">
           <summary className="cursor-pointer text-body-lg text-fg">How the readings are checked</summary>
           <ul className="mt-3 flex list-disc flex-col gap-2 pl-6 text-body text-fg-secondary">
-            <li>Each sensor reports every 10 seconds. A reading only counts if it arrives intact and makes physical sense.</li>
-            <li>Readings that jump suddenly, or come from a sensor whose clock is wrong, are set aside and not shown here.</li>
-            <li>A sensor that stops reporting drops out after 30 seconds, so a number is never older than it says.</li>
-            <li>The map estimates air between sensors by distance. It doesn’t model wind or terrain, and it stays blank where no sensor is close.</li>
+            <li>
+              Each sensor reports every 10 seconds. A reading only counts if it arrives intact and makes
+              physical sense.
+            </li>
+            <li>
+              Readings that jump suddenly, or come from a sensor whose clock is wrong, are set aside and not
+              shown here.
+            </li>
+            <li>
+              A sensor that stops reporting drops out after 30 seconds, so a number is never older than it
+              says.
+            </li>
+            <li>
+              The map estimates air between sensors by distance. It doesn’t model wind or terrain, and it
+              stays blank where no sensor is close.
+            </li>
           </ul>
         </details>
       </section>
@@ -213,7 +298,11 @@ export default function PublicHomePage() {
 }
 
 function TrendSection() {
-  const trend = useQuery({ queryKey: ["public", "trend", "pm25"], queryFn: ({ signal }) => api.publicTrend("pm25", signal), refetchInterval: 5 * 60_000 });
+  const trend = useQuery({
+    queryKey: ["public", "trend", "pm25"],
+    queryFn: ({ signal }) => api.publicTrend("pm25", signal),
+    refetchInterval: 5 * 60_000,
+  });
   const bars: Bar[] = useMemo(
     () =>
       (trend.data?.points ?? []).map((p) => ({
@@ -229,10 +318,16 @@ function TrendSection() {
       <h2 id="trend-title" className="text-h2 text-fg">
         The last 24 hours across Lagos
       </h2>
-      <p className="mt-2 text-body-lg text-fg-secondary">Average fine particles each hour, all areas together, in µg/m³.</p>
+      <p className="mt-2 text-body-lg text-fg-secondary">
+        Average fine particles each hour, all areas together, in µg/m³.
+      </p>
       <div className="mt-6">
         {trend.error ? (
-          <ErrorState title="Couldn’t load the trend" detail={errorMessage(trend.error)} onRetry={() => void trend.refetch()} />
+          <ErrorState
+            title="Couldn’t load the trend"
+            detail={errorMessage(trend.error)}
+            onRetry={() => void trend.refetch()}
+          />
         ) : trend.isLoading ? (
           <Skeleton className="h-60" />
         ) : (

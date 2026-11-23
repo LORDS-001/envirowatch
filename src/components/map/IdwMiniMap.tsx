@@ -5,6 +5,7 @@ import { cssVar, useSize } from "@/lib/hooks";
 import { METRICS, heatBin, type MetricId } from "@/lib/metrics";
 import { EstimatedFlag } from "@/components/ui/QualityFlag";
 import { useIdwGrid } from "./useIdwGrid";
+import { project } from "./projection";
 
 let heatCache: string[] | null = null;
 /** Heat colours resolved once from the tokens (reading computed style forces a style recalc). */
@@ -19,7 +20,17 @@ export const IDW_POWER = 2;
 const CELL_PX = 4;
 
 /** Area names drawn on top, so the surface has places, not just colour. */
-const LABELLED = new Set(["Ikeja", "Yaba", "Apapa Port", "Lekki Phase 1", "Ikorodu", "Festac", "Victoria Island", "Oshodi", "Ajah"]);
+const LABELLED = new Set([
+  "Ikeja",
+  "Yaba",
+  "Apapa Port",
+  "Lekki Phase 1",
+  "Ikorodu",
+  "Festac",
+  "Victoria Island",
+  "Oshodi",
+  "Ajah",
+]);
 
 interface IdwMiniMapProps {
   metric: MetricId;
@@ -30,52 +41,17 @@ interface IdwMiniMapProps {
   className?: string;
 }
 
-interface Projection {
-  bounds: [number, number, number, number];
-  toXY: (lat: number, lng: number) => [number, number];
-}
-
-/** Equirectangular fit of the site extent into the box, preserving aspect at this latitude. */
-function project(sites: readonly Site[], width: number, height: number, pad = 28): Projection | null {
-  if (!sites.length || width <= 0 || height <= 0) return null;
-  const lats = sites.map((s) => s.latitude);
-  const lngs = sites.map((s) => s.longitude);
-  let south = Math.min(...lats);
-  let north = Math.max(...lats);
-  let west = Math.min(...lngs);
-  let east = Math.max(...lngs);
-  const k = Math.cos(((south + north) / 2) * (Math.PI / 180));
-  // Grow the shorter side so a degree of longitude and latitude cover the same distance on screen.
-  const w = width - 2 * pad;
-  const h = height - 2 * pad;
-  const spanX = (east - west) * k;
-  const spanY = north - south;
-  if (spanX / spanY > w / h) {
-    const need = (spanX * h) / w - spanY;
-    south -= need / 2;
-    north += need / 2;
-  } else {
-    const need = ((spanY * w) / h - spanX) / k;
-    west -= need / 2;
-    east += need / 2;
-  }
-  const padLat = ((north - south) * pad) / h;
-  const padLng = ((east - west) * pad) / w;
-  south -= padLat;
-  north += padLat;
-  west -= padLng;
-  east += padLng;
-  return {
-    bounds: [south, west, north, east],
-    toXY: (lat, lng) => [((lng - west) / (east - west)) * width, ((north - lat) / (north - south)) * height],
-  };
-}
-
 /**
  * Live IDW surface on canvas with site markers and area labels. Never extrapolates past
  * coverage, always carries the Estimated flag and the method caption.
  */
-export const IdwMiniMap = memo(function IdwMiniMap({ metric, samples, sites, flagged, className }: IdwMiniMapProps) {
+export const IdwMiniMap = memo(function IdwMiniMap({
+  metric,
+  samples,
+  sites,
+  flagged,
+  className,
+}: IdwMiniMapProps) {
   const [ref, { width, height }] = useSize<HTMLDivElement>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const proj = useMemo(() => project(sites, width, height), [sites, width, height]);
@@ -162,7 +138,14 @@ export const IdwMiniMap = memo(function IdwMiniMap({ metric, samples, sites, fla
                   strokeWidth={reporting ? 1 : 1}
                 />
                 {LABELLED.has(s.name) && (
-                  <text x={x + 6} y={y - 6} className="fill-fg-secondary text-label" style={{ paintOrder: "stroke" }} stroke="var(--bg-sunken)" strokeWidth={3}>
+                  <text
+                    x={x + 6}
+                    y={y - 6}
+                    className="fill-fg-secondary text-label"
+                    style={{ paintOrder: "stroke" }}
+                    stroke="var(--bg-sunken)"
+                    strokeWidth={3}
+                  >
                     {s.name}
                   </text>
                 )}

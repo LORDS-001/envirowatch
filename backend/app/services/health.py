@@ -5,6 +5,7 @@ from statistics import median
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import distinct_on
 
 from app.models import Device, Measurement, Site
 from app.schemas.health import DeviceHealthEventOut
@@ -61,12 +62,23 @@ def evaluate(db: Session, org_id, now: datetime | None = None) -> list[DeviceHea
         if n >= MIN_READINGS:
             per_metric[metric].append(avg)
     baseline = {m: median(v) for m, v in per_metric.items() if len(v) >= 3}
+    flagged = defaultdict(list)
+    latest_flags = db.execute(select(Measurement.device_id, Measurement.metric, Measurement.quality_reason)
+        .join(Device, Device.id == Measurement.device_id).join(Site, Site.id == Device.site_id)
+        .where(Site.organization_id == org_id, Measurement.quality_status == "suspicious",
+               Measurement.event_time >= now - SILENT_AFTER, Measurement.event_time <= now)
+        .ext(distinct_on(Measurement.device_id, Measurement.metric))
+        .order_by(Measurement.device_id, Measurement.metric, Measurement.event_time.desc())).all()
+    for device_id, metric, reason in latest_flags:
+        flagged[device_id].append((metric, reason or "Suspicious reading"))
 
     results = []
     for d in devices:
         events: list[DeviceHealthEventOut] = []
 
         def add(fault, severity, detail):
+            if any(event.fault_type == fault for event in events):
+                return
             events.append(DeviceHealthEventOut(
                 device_id=d.id, fault_type=fault, severity=severity, detected_at=now, detail=detail))
 
@@ -82,6 +94,12 @@ def evaluate(db: Session, org_id, now: datetime | None = None) -> list[DeviceHea
             continue
 
         drifting = False
+        for metric, reason in flagged[d.id]:
+            if reason.startswith("Persistent temperature drift"):
+                drifting = True
+                add("drift", "warn", reason)
+            elif reason.startswith("Spatial outlier"):
+                add("spike", "warn", f"{metric}: {reason}")
         for metric in d.metrics:
             s, base = stats.get((d.id, metric)), baseline.get(metric)
             if s is None or base is None or s[1] < MIN_READINGS:

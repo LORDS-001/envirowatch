@@ -47,7 +47,7 @@ def system_health(db: Session = Depends(get_db), user: User = Depends(get_curren
             select(Measurement.quality_status, func.count())
             .join(Device, Measurement.device_id == Device.id)
             .join(Site, Device.site_id == Site.id)
-            .where(org, Measurement.received_at >= now - timedelta(hours=1))
+            .where(org, Measurement.received_at >= now - timedelta(hours=24))
             .group_by(Measurement.quality_status)
         ).all()
     )

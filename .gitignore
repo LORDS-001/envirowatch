@@ -6,3 +6,6 @@ test-results
 *.local
 .env.local
 .env
+newtest2.py
+wstest.py
+backend/backups/

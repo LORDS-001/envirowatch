@@ -77,7 +77,12 @@ export class SeenIds {
 const RATE_WINDOW_S = 10;
 const MAX_FAULTS = 50;
 
-export function applyEvents(prev: LiveSnapshot, events: readonly WsEvent[], seen: SeenIds, now: number): LiveSnapshot {
+export function applyEvents(
+  prev: LiveSnapshot,
+  events: readonly WsEvent[],
+  seen: SeenIds,
+  now: number,
+): LiveSnapshot {
   const latest = { ...prev.latest };
   const deviceLastSeen = { ...prev.deviceLastSeen };
   let { readings, duplicates, outOfOrder, quarantined, newestEventMs } = prev;
@@ -92,7 +97,7 @@ export function applyEvents(prev: LiveSnapshot, events: readonly WsEvent[], seen
     if (ev.type !== "measurement.updated" || ev.data.length === 0) continue;
     // One message is one logical reading; its rows share a reading_id.
     const first = ev.data[0]!;
-    if (!seen.add(first.reading_id)) {
+    if (!seen.add(`${first.device_id}|${first.reading_id}`)) {
       duplicates++;
       continue;
     }

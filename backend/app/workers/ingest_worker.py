@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import socket
 import time
 from datetime import datetime, timezone
 
@@ -8,7 +9,7 @@ import redis
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
-from app.core.queue import DEAD, GROUP, LATENCY_KEY, LIVE_CHANNEL, STREAM, make_redis
+from app.core.queue import ACK_DELETE, DEAD, GROUP, LATENCY_KEY, LIVE_CHANNEL, STREAM, make_redis
 from app.db.session import SessionLocal
 from app.models import Device, Site
 from app.services.ingestion import Item, process_batch
@@ -16,7 +17,7 @@ from app.services.ingestion import Item, process_batch
 log = logging.getLogger("ingest-worker")
 
 BATCH = 200
-CONSUMER = os.environ.get("WORKER_NAME", "worker-1")  # give each extra worker its own name
+CONSUMER = os.environ.get("WORKER_NAME") or f"{socket.gethostname()}-{os.getpid()}"
 CLAIM_IDLE_MS = 30_000
 CLAIM_EVERY_S = 10
 
@@ -100,7 +101,7 @@ def after_commit(r: redis.Redis, items: list[Item], prepared) -> None:
     try:
         record_latency(r, items)
         publish(r, prepared)
-    except redis.RedisError:
+    except Exception:
         log.warning("could not record latency or publish live events")
 
 
@@ -137,29 +138,37 @@ def handle(r: redis.Redis, entries) -> int:
                     done.append(msg_id)
 
     if done:
-        r.xack(STREAM, GROUP, *done)
-        r.xdel(STREAM, *done)  # stored, so the stream length equals the queue depth
+        r.eval(ACK_DELETE, 1, STREAM, GROUP, *done)
     return len(done)
+
+
+def reclaim(r: redis.Redis, cursor: str) -> tuple[str, int]:
+    next_cursor, entries, *_ = r.xautoclaim(
+        STREAM, GROUP, CONSUMER, min_idle_time=CLAIM_IDLE_MS, start_id=cursor, count=BATCH
+    )
+    if entries:
+        log.warning("reclaimed %d messages left by a stopped worker", len(entries))
+    return next_cursor, handle(r, entries) if entries else 0
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s")
     r = make_redis(timeout=15)
-    ensure_group(r)
     log.info("worker %s started (batch size %d)", CONSUMER, BATCH)
 
     last_claim = last_log = time.monotonic()
     processed = 0
+    group_ready = False
+    claim_cursor = "0-0"
     while True:
         try:
+            if not group_ready:
+                ensure_group(r)
+                group_ready = True
             if time.monotonic() - last_claim > CLAIM_EVERY_S:
                 last_claim = time.monotonic()
-                claimed = r.xautoclaim(
-                    STREAM, GROUP, CONSUMER, min_idle_time=CLAIM_IDLE_MS, start_id="0-0", count=BATCH
-                )[1]
-                if claimed:
-                    log.warning("reclaimed %d messages left by a stopped worker", len(claimed))
-                    processed += handle(r, claimed)
+                claim_cursor, reclaimed = reclaim(r, claim_cursor)
+                processed += reclaimed
 
             for start in ("0", ">"):  # "0": my own unfinished messages, ">": new ones
                 resp = r.xreadgroup(
@@ -181,7 +190,8 @@ def main() -> None:
         except redis.ResponseError as e:
             if "NOGROUP" not in str(e):
                 raise
-            ensure_group(r)
+            group_ready = False
+            claim_cursor = "0-0"
         except KeyboardInterrupt:
             log.info("stopping")
             break

@@ -1,9 +1,11 @@
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from collections import defaultdict
+from statistics import median
 
-from sqlalchemy import bindparam, or_, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import bindparam, or_, select, update, func
+from sqlalchemy.dialects.postgresql import insert, distinct_on
 from sqlalchemy.orm import Session
 
 from app.models import Device, IngestionEvent, Measurement
@@ -104,12 +106,13 @@ def prepare(device: Device | None, item: Item) -> Prepared:
     return Prepared(device.id, rid, received_at, "accepted", None, rows)
 
 
-def process_batch(db: Session, items: list[Item]) -> list[Prepared]:
+def process_batch(db: Session, items: list[Item], *, commit: bool = True) -> list[Prepared]:
     """One transaction for the whole batch: readings, ingestion log and last_seen_at."""
     devices = {
         d.id: d for d in db.scalars(select(Device).where(Device.id.in_({i.device_id for i in items})))
     }
     prepared = [prepare(devices.get(i.device_id), i) for i in items]
+    _classify_spatial_outliers(db, devices, prepared)
 
     # Duplicates inside this batch are caught here; duplicates of earlier batches by the database.
     seen: set[tuple[str, str]] = set()
@@ -155,5 +158,54 @@ def process_batch(db: Session, items: list[Item]) -> list[Prepared]:
             [{"b_id": k, "b_ts": v} for k, v in last_seen.items()],
         )
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return prepared
+
+
+def _classify_spatial_outliers(db: Session, devices: dict[str, Device], prepared: list[Prepared]) -> None:
+    candidates = [row for item in prepared for row in item.rows if row["quality_status"] == "valid"]
+    if not candidates:
+        return
+    reference = max(row["received_at"] for row in candidates)
+    site_ids = {device.site_id for device in devices.values()}
+    latest = db.execute(
+        select(Device.site_id, Measurement.device_id, Measurement.metric, Measurement.value)
+        .join(Measurement, Measurement.device_id == Device.id)
+        .where(Device.site_id.in_(site_ids), Device.status == "active",
+               Measurement.quality_status.in_(["valid", "estimated"]),
+               Measurement.event_time >= reference - timedelta(minutes=10), Measurement.event_time <= reference)
+        .ext(distinct_on(Measurement.device_id, Measurement.metric))
+        .order_by(Measurement.device_id, Measurement.metric, Measurement.event_time.desc())
+    ).all()
+    peers = defaultdict(dict)
+    for site_id, device_id, metric, value in latest:
+        peers[(site_id, metric)][device_id] = value
+    for row in candidates:
+        if reference - timedelta(seconds=30) <= row["event_time"] <= reference:
+            peers[(devices[row["device_id"]].site_id, row["metric"])][row["device_id"]] = row["value"]
+    margins = {"pm25": 150, "temperature_c": 10, "humidity_percent": 35}
+    recent_temperatures = defaultdict(list)
+    if any(row["metric"] == "temperature_c" for row in candidates):
+        recent = select(Measurement.device_id, Measurement.value,
+                        func.row_number().over(partition_by=Measurement.device_id, order_by=Measurement.event_time.desc()).label("position"))\
+            .where(Measurement.device_id.in_(list(devices)), Measurement.metric == "temperature_c",
+                   Measurement.event_time >= reference - timedelta(minutes=5), Measurement.event_time <= reference,
+                   Measurement.quality_status.in_(["valid", "suspicious", "estimated"])).subquery()
+        for device_id, value in db.execute(select(recent.c.device_id, recent.c.value).where(recent.c.position <= 4)):
+            recent_temperatures[device_id].append(value)
+    for row in candidates:
+        device = devices[row["device_id"]]
+        values = [value for device_id, value in peers[(device.site_id, row["metric"])].items() if device_id != device.id]
+        if len(values) >= 2 and abs(row["value"] - median(values)) > margins[row["metric"]]:
+            row["quality_status"] = "suspicious"
+            row["quality_reason"] = "Spatial outlier: disagrees with at least two recent sensors at this site"
+        elif row["metric"] == "temperature_c" and len(values) >= 2:
+            baseline = median(values)
+            history = recent_temperatures[device.id]
+            offsets = [value - baseline for value in [*history, row["value"]]]
+            if len(history) == 4 and (all(offset > 2.5 for offset in offsets) or all(offset < -2.5 for offset in offsets)):
+                row["quality_status"] = "suspicious"
+                row["quality_reason"] = "Persistent temperature drift: five readings disagree with site peers by more than 2.5 C"

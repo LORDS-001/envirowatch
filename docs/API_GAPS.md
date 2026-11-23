@@ -1,5 +1,7 @@
 # API gaps
 
+> Historical contract proposal. As of 2026-11-22, the real backend implements the main contracts described here, including authenticated cookie-based WebSockets, pagination envelopes, public endpoints, invitations, reports and simulator runs. Missing-reading accounting and notification transports still have explicit limitations. See `IMPLEMENTATION_STATUS.md` and `../backend/README.md` for current evidence, setup and remaining gates; “Undecided” below describes the original proposal, not the current WebSocket implementation.
+
 Things the UI needs that the PRD contract (§8–9) doesn’t define. Each is mocked in `src/mocks/handlers.ts` with the shape below and marked `GAP` in `src/lib/api/schemas.ts`. Backend: please confirm or counter-propose.
 
 | # | Need | Proposed shape | Used by |

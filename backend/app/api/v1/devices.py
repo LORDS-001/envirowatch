@@ -1,5 +1,5 @@
 from app.models import IngestionEvent
-from app.schemas.health import DeviceHealthOut, IngestionEventOut
+from app.schemas.health import DeviceHealthOut, IngestionEventOut, IngestionEventPage
 from app.services.health import evaluate
 import uuid
 from datetime import datetime, timezone
@@ -117,6 +117,7 @@ def update_device(
 @router.post("/{device_id}/rotate-key", response_model=RotatedKey)
 def rotate_key(device_id: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     device = _device_in_org(db, device_id, admin)
+    db.refresh(device, with_for_update=True)
     now = datetime.now(timezone.utc)
 
     db.execute(
@@ -138,24 +139,28 @@ def device_health(device_id: str, db: Session = Depends(get_db), user: User = De
     )
 
 
-@router.get("/{device_id}/ingestion-events", response_model=list[IngestionEventOut])
+@router.get("/{device_id}/ingestion-events", response_model=IngestionEventPage)
 def ingestion_events(
     device_id: str,
     limit: int = Query(100, ge=1, le=500),
+    cursor: int | None = Query(None, ge=1),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     _device_in_org(db, device_id, user)
-    rows = db.scalars(
+    query = (
         select(IngestionEvent)
         .where(IngestionEvent.device_id == device_id)
         .order_by(IngestionEvent.id.desc())
-        .limit(limit)
+        .limit(limit + 1)
     )
-    return [
+    if cursor is not None:
+        query = query.where(IngestionEvent.id < cursor)
+    rows = list(db.scalars(query))
+    return IngestionEventPage(items=[
         IngestionEventOut(
             device_id=e.device_id, reading_id=e.reading_id or "", outcome=e.outcome,
             reason=e.reason, received_at=e.received_at,
         )
-        for e in rows
-    ]
+        for e in rows[:limit]
+    ], next_cursor=str(rows[limit - 1].id) if len(rows) > limit else None)

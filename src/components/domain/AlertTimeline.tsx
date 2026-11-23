@@ -12,7 +12,12 @@ export interface TimelineStep {
 }
 
 const CHANNEL = { email: "Email", sms: "SMS", webhook: "Webhook" } as const;
-const OUTCOME = { delivered: "Delivered", failed: "Failed", pending: "Waiting for delivery" } as const;
+const OUTCOME = {
+  delivered: "Delivered",
+  failed: "Failed",
+  pending: "Waiting for delivery",
+  not_configured: "Not sent: delivery is not configured",
+} as const;
 
 /** Lifecycle steps, in order: threshold crossed → Pending → Active → Notified → Acknowledged → Resolved. */
 export function alertSteps(a: Alert): TimelineStep[] {
@@ -28,13 +33,19 @@ export function alertSteps(a: Alert): TimelineStep[] {
           : undefined,
       tone: "warn",
     },
-    { key: "pending", label: "Pending", at: a.opened_at, detail: "Waiting for consecutive readings to confirm", tone: "warn" },
+    {
+      key: "pending",
+      label: "Pending",
+      at: a.opened_at,
+      detail: "Waiting for consecutive readings to confirm",
+      tone: "warn",
+    },
     { key: "active", label: "Active", at: a.activated_at, tone: "critical" },
   ];
   for (const n of a.notifications) {
     steps.push({
       key: `n-${n.channel}-${n.attempted_at}`,
-      label: `Notified by ${CHANNEL[n.channel]}`,
+      label: `${CHANNEL[n.channel]} notification`,
       at: n.attempted_at,
       detail: OUTCOME[n.outcome],
       tone: n.outcome === "failed" ? "critical" : "neutral",
@@ -59,7 +70,7 @@ export function resolveRule(a: Alert): string {
   const metric = a.metric ? METRICS[a.metric] : null;
   if (!metric || a.threshold === null) return "Resolves when the condition clears";
   const clear = a.threshold - (a.hysteresis ?? 0);
-  return `Resolves when ${metric.label} stays below ${formatNumber(clear)} ${metric.unit} (${formatNumber(a.threshold)} minus ${formatNumber(a.hysteresis ?? 0)} hysteresis) for 3 consecutive readings`;
+  return `Resolves when ${metric.label} falls below ${formatNumber(clear)} ${metric.unit} (${formatNumber(a.threshold)} minus ${formatNumber(a.hysteresis ?? 0)} hysteresis)`;
 }
 
 const DOT: Record<NonNullable<TimelineStep["tone"]>, string> = {
@@ -91,7 +102,9 @@ export function AlertTimeline({ alert }: { alert: Alert }) {
               aria-hidden="true"
               className={cn(
                 "relative mt-1 size-4 shrink-0 rounded-pill border-2",
-                reached ? cn("border-transparent", DOT[s.tone ?? "neutral"]) : "border-line-strong bg-surface-1",
+                reached
+                  ? cn("border-transparent", DOT[s.tone ?? "neutral"])
+                  : "border-line-strong bg-surface-1",
               )}
             />
             <div className="min-w-0">

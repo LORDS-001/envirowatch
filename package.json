@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "e2e:real": "playwright test --config=playwright.real.config.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "check": "npm run typecheck && npm run lint && npm run test"

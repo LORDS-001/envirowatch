@@ -54,9 +54,12 @@ class Alert(Base):
 
 class NotificationAttempt(Base):
     __tablename__ = "notification_attempts"
+    __table_args__ = (Index("ix_notification_attempts_due", "outcome", "next_attempt_at", "id"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     alert_id: Mapped[str] = mapped_column(ForeignKey("alerts.id"), index=True)
     channel: Mapped[str] = mapped_column(String(20))
     outcome: Mapped[str] = mapped_column(String(20))  # delivered | failed | pending
     attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    attempt_count: Mapped[int] = mapped_column(Integer, server_default="0", default=0)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

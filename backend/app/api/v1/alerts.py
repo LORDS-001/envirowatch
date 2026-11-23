@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_admin
@@ -55,6 +55,7 @@ def _get_alert(db: Session, alert_id: str, user: User) -> Alert:
 def list_alerts(
     status: list[str] = Query(default=[]),
     limit: int = Query(200, ge=1, le=500),
+    cursor: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -64,8 +65,14 @@ def list_alerts(
     q = select(Alert).where(Alert.organization_id == user.organization_id)
     if status:
         q = q.where(Alert.status.in_(status))
-    alerts = list(db.scalars(q.order_by(Alert.opened_at.desc()).limit(limit)))
-    return AlertPage(items=_serialize(db, alerts), next_cursor=None)
+    if cursor:
+        anchor = _get_alert(db, cursor, user)
+        q = q.where(tuple_(Alert.opened_at, Alert.id) < tuple_(anchor.opened_at, anchor.id))
+    alerts = list(db.scalars(q.order_by(Alert.opened_at.desc(), Alert.id.desc()).limit(limit + 1)))
+    return AlertPage(
+        items=_serialize(db, alerts[:limit]),
+        next_cursor=alerts[limit - 1].id if len(alerts) > limit else None,
+    )
 
 
 @router.get("/{alert_id}", response_model=AlertOut)
@@ -76,9 +83,12 @@ def get_alert(alert_id: str, db: Session = Depends(get_db), user: User = Depends
 @router.post("/{alert_id}/acknowledge", response_model=AlertOut)
 def acknowledge(alert_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     alert = _get_alert(db, alert_id, user)
+    db.refresh(alert, with_for_update=True)
     if alert.status == "resolved":
         raise HTTPException(409, detail="This alert has already resolved")
-    if alert.status in ("pending", "active"):
+    if alert.status == "pending":
+        raise HTTPException(409, detail="Wait for corroborated confirmation before acknowledging this alert")
+    if alert.status == "active":
         alert.status = "acknowledged"
         alert.acknowledged_at = datetime.now(timezone.utc)
         db.commit()

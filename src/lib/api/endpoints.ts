@@ -1,7 +1,7 @@
 /** Typed endpoints. One function per route in the PRD contract (§9), plus logged gap endpoints. */
 import { z } from "zod";
 import type { MetricId } from "@/lib/metrics";
-import { request, requestBlob } from "./client";
+import { ApiError, ContractError, request, requestBlob, type Query } from "./client";
 import * as S from "./schemas";
 import type { AlertRule, Channel, Retention, Role, SimFault } from "./types";
 
@@ -54,18 +54,22 @@ export const api = {
   // ---- Devices ----
 
   devices: (q: { organization_id?: string } = {}, signal?: AbortSignal) =>
-    request("/devices", { schema: page(S.DeviceSchema), query: q, signal }),
+    allPages("/devices", S.DeviceSchema, q, signal),
 
   /** GAP: single device. */
-  device: (id: string, signal?: AbortSignal) => request(`/devices/${enc(id)}`, { schema: S.DeviceSchema, signal }),
+  device: (id: string, signal?: AbortSignal) =>
+    request(`/devices/${enc(id)}`, { schema: S.DeviceSchema, signal }),
 
   registerDevice: (body: RegisterDeviceBody) =>
     request("/devices", { method: "POST", body, schema: S.DeviceWithKeySchema }),
 
-  updateDevice: (id: string, patch: Partial<Pick<RegisterDeviceBody, "type" | "site_id">> & { status?: "active" | "deactivated" }) =>
-    request(`/devices/${enc(id)}`, { method: "PATCH", body: patch, schema: S.DeviceSchema }),
+  updateDevice: (
+    id: string,
+    patch: Partial<Pick<RegisterDeviceBody, "type" | "site_id">> & { status?: "active" | "deactivated" },
+  ) => request(`/devices/${enc(id)}`, { method: "PATCH", body: patch, schema: S.DeviceSchema }),
 
-  rotateKey: (id: string) => request(`/devices/${enc(id)}/rotate-key`, { method: "POST", schema: S.RotatedKeySchema }),
+  rotateKey: (id: string) =>
+    request(`/devices/${enc(id)}/rotate-key`, { method: "POST", schema: S.RotatedKeySchema }),
 
   deviceHealth: (id: string, signal?: AbortSignal) =>
     request(`/devices/${enc(id)}/health`, { schema: S.DeviceHealthSchema, signal }),
@@ -81,14 +85,21 @@ export const api = {
   // ---- Sites and measurements ----
 
   /** GAP: sites endpoint. */
-  sites: (signal?: AbortSignal) => request("/sites", { schema: page(S.SiteSchema), signal }),
+  sites: (signal?: AbortSignal) => allPages("/sites", S.SiteSchema, {}, signal),
 
   createSite: (body: { name: string; latitude: number; longitude: number }) =>
     request("/sites", { method: "POST", body, schema: S.SiteSchema }),
 
   /** Raw readings for one device and metric. GAP: cursor pagination; ranges up to 24 h. */
   measurements: (
-    q: { device_id: string; metric: MetricId; from: string; to: string; cursor?: string | null; limit?: number },
+    q: {
+      device_id: string;
+      metric: MetricId;
+      from: string;
+      to: string;
+      cursor?: string | null;
+      limit?: number;
+    },
     signal?: AbortSignal,
   ) => request("/measurements", { schema: page(S.MeasurementSchema), query: q, signal }),
 
@@ -96,7 +107,11 @@ export const api = {
     request("/measurements/aggregates", { schema: page(S.AggregateSchema), query: { ...q }, signal }),
 
   /** GAP: `at` for a past moment, `include_suspicious` for investigators. */
-  heatmap: (metric: MetricId, opts: { at?: string; includeSuspicious?: boolean } = {}, signal?: AbortSignal) =>
+  heatmap: (
+    metric: MetricId,
+    opts: { at?: string; includeSuspicious?: boolean } = {},
+    signal?: AbortSignal,
+  ) =>
     request("/heatmap", {
       schema: S.HeatmapSchema,
       query: { metric, at: opts.at, include_suspicious: opts.includeSuspicious || undefined },
@@ -110,12 +125,14 @@ export const api = {
   // ---- Alerts ----
 
   alerts: (q: { status?: readonly string[] } = {}, signal?: AbortSignal) =>
-    request("/alerts", { schema: page(S.AlertSchema), query: q, signal }),
+    allPages("/alerts", S.AlertSchema, q, signal),
 
   /** GAP: single alert. */
-  alert: (id: string, signal?: AbortSignal) => request(`/alerts/${enc(id)}`, { schema: S.AlertSchema, signal }),
+  alert: (id: string, signal?: AbortSignal) =>
+    request(`/alerts/${enc(id)}`, { schema: S.AlertSchema, signal }),
 
-  acknowledgeAlert: (id: string) => request(`/alerts/${enc(id)}/acknowledge`, { method: "POST", schema: S.AlertSchema }),
+  acknowledgeAlert: (id: string) =>
+    request(`/alerts/${enc(id)}/acknowledge`, { method: "POST", schema: S.AlertSchema }),
 
   // ---- System, reports ----
 
@@ -132,7 +149,18 @@ export const api = {
   users: (signal?: AbortSignal) => request("/users", { schema: page(S.UserSchema), signal }),
 
   inviteUser: (email: string, role: Role) =>
-    request("/users", { method: "POST", body: { email, role }, schema: S.UserSchema }),
+    request("/users", { method: "POST", body: { email, role }, schema: invitationResponse() }),
+
+  reissueInvitation: (id: string) =>
+    request(`/users/${enc(id)}/invitation`, { method: "POST", schema: invitationResponse() }),
+
+  acceptInvitation: (token: string, password: string) =>
+    request("/auth/accept-invitation", {
+      method: "POST",
+      body: { token, password },
+      anonymous: true,
+      schema: z.null(),
+    }),
 
   updateUser: (id: string, role: Role) =>
     request(`/users/${enc(id)}`, { method: "PATCH", body: { role }, schema: S.UserSchema }),
@@ -144,12 +172,17 @@ export const api = {
 
   retention: (signal?: AbortSignal) => request("/retention", { schema: S.RetentionSchema, signal }),
 
-  updateRetention: (body: Retention) => request("/retention", { method: "PUT", body, schema: S.RetentionSchema }),
+  updateRetention: (body: Retention) =>
+    request("/retention", { method: "PUT", body, schema: S.RetentionSchema }),
 
   simulatorStatus: (signal?: AbortSignal) => request("/simulator/run", { schema: S.SimStatusSchema, signal }),
 
-  startSimulation: (body: { scenario: "baseline" | "fault_hour" | "custom"; seed: number; faults: SimFault[]; speed: number }) =>
-    request("/simulator/run", { method: "POST", body, schema: S.SimStatusSchema }),
+  startSimulation: (body: {
+    scenario: "baseline" | "fault_hour" | "custom";
+    seed: number;
+    faults: SimFault[];
+    speed: number;
+  }) => request("/simulator/run", { method: "POST", body, schema: S.SimStatusSchema }),
 
   controlSimulation: (action: "pause" | "resume" | "stop") =>
     request(`/simulator/run/${action}`, { method: "POST", schema: S.SimStatusSchema }),
@@ -161,7 +194,12 @@ export const api = {
 
   /** GAP: 24 h city trend for the public page. */
   publicTrend: (metric: MetricId, signal?: AbortSignal) =>
-    request("/public/trend", { schema: S.PublicTrendSchema, query: { metric, hours: 24 }, signal, anonymous: true }),
+    request("/public/trend", {
+      schema: S.PublicTrendSchema,
+      query: { metric, hours: 24 },
+      signal,
+      anonymous: true,
+    }),
 
   /** GAP: public heat map input (approved data only). */
   publicHeatmap: (metric: MetricId, signal?: AbortSignal) =>
@@ -177,4 +215,30 @@ function page<T extends z.ZodType>(item: T) {
 
 function enc(id: string) {
   return encodeURIComponent(id);
+}
+
+function invitationResponse() {
+  return S.UserSchema.extend({
+    invitation_token: z.string().nullable().optional(),
+    invitation_delivery: z.enum(["delivered", "failed", "not_configured"]).nullable().optional(),
+  });
+}
+
+async function allPages<T extends z.ZodType>(path: string, item: T, query: Query, signal?: AbortSignal) {
+  const items: z.infer<T>[] = [];
+  const cursors = new Set<string>();
+  let cursor: string | null = null;
+  for (let index = 0; index < 200; index++) {
+    const result: { items: z.infer<T>[]; next_cursor: string | null } = await request(path, {
+      schema: page(item),
+      query: { ...query, cursor, limit: 500 },
+      signal,
+    });
+    items.push(...result.items);
+    if (!result.next_cursor) return { items, next_cursor: null };
+    if (cursors.has(result.next_cursor)) throw new ContractError(path, "Pagination cursor did not advance");
+    cursor = result.next_cursor;
+    cursors.add(result.next_cursor);
+  }
+  throw new ApiError(413, "Too many records. Narrow the selection", path);
 }

@@ -11,7 +11,7 @@ from app.core.queue import LIVE_CHANNEL
 
 log = logging.getLogger("live")
 
-ALLOWED_ORIGINS = ["http://localhost:5173"]  # the frontend; used for CORS and the websocket Origin check
+ALLOWED_ORIGINS = settings.allowed_origins
 
 
 class Hub:
@@ -33,7 +33,9 @@ class Hub:
             try:
                 q.put_nowait(text)
             except asyncio.QueueFull:
-                pass  # a very slow client; the dashboard refetches when it reconnects
+                while not q.empty():
+                    q.get_nowait()
+                q.put_nowait(None)
 
     async def heartbeat_loop(self) -> None:
         while True:
@@ -47,7 +49,9 @@ class Hub:
                     try:
                         q.put_nowait(text)
                     except asyncio.QueueFull:
-                        pass
+                        while not q.empty():
+                            q.get_nowait()
+                        q.put_nowait(None)
 
 
 async def subscriber(hub: Hub) -> None:

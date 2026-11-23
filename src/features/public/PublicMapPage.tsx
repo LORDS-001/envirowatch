@@ -11,21 +11,36 @@ import { idwCaption } from "@/components/map/IdwMiniMap";
 import { ErrorState } from "@/components/ui/Feedback";
 import { Segmented } from "@/components/ui/Field";
 import { usePublicSummary } from "./publicData";
+import { useNow } from "@/lib/hooks";
+import { staleAfterMs } from "@/lib/config";
 
 export default function PublicMapPage() {
   useEffect(() => {
     document.title = "Map | EnviroWatch";
   }, []);
   const [metric, setMetric] = useState<MetricId>("pm25");
-  const heat = useQuery({ queryKey: ["public", "heatmap", metric], queryFn: ({ signal }) => api.publicHeatmap(metric, signal), refetchInterval: 60_000 });
+  const heat = useQuery({
+    queryKey: ["public", "heatmap", metric],
+    queryFn: ({ signal }) => api.publicHeatmap(metric, signal),
+    refetchInterval: 15_000,
+  });
   const summary = usePublicSummary();
   const sites: Site[] = useMemo(
     () =>
-      (summary.data?.areas ?? []).map((a) => ({ id: a.site_id, organization_id: "public", name: a.name, latitude: a.latitude, longitude: a.longitude })),
+      (summary.data?.areas ?? []).map((a) => ({
+        id: a.site_id,
+        organization_id: "public",
+        name: a.name,
+        latitude: a.latitude,
+        longitude: a.longitude,
+      })),
     [summary.data],
   );
   const [selected, setSelected] = useState<string | null>(null);
-  const samples = heat.data?.samples ?? [];
+  const now = useNow();
+  const samples = (heat.data?.samples ?? []).filter(
+    (sample) => now - Date.parse(sample.event_time) <= staleAfterMs,
+  );
   const chosen = samples.find((s) => s.site_id === selected);
   const chosenName = sites.find((s) => s.id === selected)?.name;
 
@@ -34,7 +49,8 @@ export default function PublicMapPage() {
       <div>
         <h1 className="text-display-lg text-fg">Map</h1>
         <p className="mt-2 max-w-[60ch] text-body-lg text-fg-secondary">
-          Colour shows the estimated level between sensors. Markers are the sensor areas; pick one to read its value.
+          Colour shows the estimated level between sensors. Markers are the sensor areas; pick one to read its
+          value.
         </p>
       </div>
       <Segmented
@@ -50,12 +66,26 @@ export default function PublicMapPage() {
         ]}
       />
       {heat.error ? (
-        <ErrorState title="Couldn’t load the map" detail={errorMessage(heat.error)} onRetry={() => void heat.refetch()} />
+        <ErrorState
+          title="Couldn’t load the map"
+          detail={errorMessage(heat.error)}
+          onRetry={() => void heat.refetch()}
+        />
       ) : (
         <div className="relative h-[60dvh] min-h-[360px] overflow-hidden rounded-xl border border-line">
-          <HeatMap metric={metric} samples={samples} sites={sites} selectedSite={selected} onSelectSite={setSelected} className="absolute inset-0" />
+          <HeatMap
+            metric={metric}
+            samples={samples}
+            sites={sites}
+            selectedSite={selected}
+            onSelectSite={setSelected}
+            className="absolute inset-0"
+          />
           {chosen && chosenName && (
-            <div role="status" className="absolute top-4 right-4 z-[500] rounded-lg border border-line bg-surface-1 p-4">
+            <div
+              role="status"
+              className="absolute top-4 right-4 z-[500] rounded-lg border border-line bg-surface-1 p-4"
+            >
               <p className="text-body-lg text-fg">{chosenName}</p>
               <p className="flex items-baseline gap-1">
                 <span className="num text-reading-xl text-fg">{formatMetricValue(chosen.value, metric)}</span>
@@ -68,7 +98,9 @@ export default function PublicMapPage() {
       )}
       <div className="grid gap-6 md:grid-cols-2">
         <HeatLegend metric={metric} />
-        <p className="text-body text-fg-muted">{idwCaption(samples.length)} Blank areas have no sensor close enough to estimate.</p>
+        <p className="text-body text-fg-muted">
+          {idwCaption(samples.length)} Blank areas have no sensor close enough to estimate.
+        </p>
       </div>
       {/* The same areas as the markers, as a list: easier on small screens and with a keyboard. */}
       <section aria-labelledby="area-list-title">

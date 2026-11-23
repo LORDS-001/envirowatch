@@ -36,6 +36,11 @@ class AggregateOut(BaseModel):
     count: int
 
 
+class AggregatePage(BaseModel):
+    items: list[AggregateOut]
+    next_cursor: str | None = None
+
+
 class LatencyOut(BaseModel):
     p50: float
     p95: float
@@ -57,7 +62,7 @@ class QualityDayOut(BaseModel):
     valid: int
     estimated: int
     suspicious: int
-    missing: int
+    missing: int | None
 
 
 class QualitySummaryOut(BaseModel):

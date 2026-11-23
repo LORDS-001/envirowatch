@@ -3,16 +3,25 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/endpoints";
 import { cityMean, mergeHeatSamples, onlineCount, siteMeans } from "@/lib/live/derive";
 import { useLive } from "@/lib/realtime/hooks";
+import { useNow } from "@/lib/hooks";
 import type { MetricId } from "@/lib/metrics";
 
 const HOUR = 3_600_000;
 
 export function useSites() {
-  return useQuery({ queryKey: ["sites"], queryFn: ({ signal }) => api.sites(signal), staleTime: 10 * 60_000 });
+  return useQuery({
+    queryKey: ["sites"],
+    queryFn: ({ signal }) => api.sites(signal),
+    staleTime: 10 * 60_000,
+  });
 }
 
 export function useDevices() {
-  return useQuery({ queryKey: ["devices"], queryFn: ({ signal }) => api.devices({}, signal), refetchInterval: 60_000 });
+  return useQuery({
+    queryKey: ["devices"],
+    queryFn: ({ signal }) => api.devices({}, signal),
+    refetchInterval: 60_000,
+  });
 }
 
 export function useHeatmap(metric: MetricId) {
@@ -74,7 +83,7 @@ export function useLiveSamples(metric: MetricId) {
     [devices.data],
   );
   const snapshot = useLive((s) => s);
-  const now = Math.max(snapshot.flushedAt, heat.dataUpdatedAt);
+  const now = useNow();
   const samples = useMemo(
     () => mergeHeatSamples(heat.data?.samples ?? [], siteMeans(snapshot, deviceSite, metric, now), now),
     [snapshot, deviceSite, heat.data, metric, now],
@@ -86,7 +95,7 @@ export function useLiveSamples(metric: MetricId) {
 export function useOnlineDevices() {
   const devices = useDevices();
   const snapshot = useLive((s) => s);
-  const now = Math.max(snapshot.flushedAt, devices.dataUpdatedAt);
+  const now = useNow();
   const online = useMemo(
     () => (devices.data ? onlineCount(devices.data.items, snapshot, now) : null),
     [devices.data, snapshot, now],

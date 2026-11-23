@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MetricId = Literal["pm25", "temperature_c", "humidity_percent"]
 DeviceStatus = Literal["active", "deactivated"]
@@ -31,6 +31,12 @@ class DevicePatch(BaseModel):
     type: str | None = Field(default=None, min_length=1, max_length=50)
     status: DeviceStatus | None = None
     metrics: list[MetricId] | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def non_null_changes(self):
+        if any(getattr(self, field) is None for field in self.model_fields_set):
+            raise ValueError("Device fields cannot be null; omit unchanged fields")
+        return self
 
 
 class DeviceWithKey(BaseModel):

@@ -15,6 +15,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { StateIcon } from "@/components/ui/StateIcon";
 import { toast } from "@/components/ui/Toast";
 import { useSites } from "@/features/overview/queries";
+import { onSessionEnd } from "@/lib/auth/lifecycle";
 
 interface Job {
   id: number;
@@ -34,11 +35,21 @@ const useJobs = create<{ jobs: Job[]; put: (j: Job) => void }>((set) => ({
   put: (j) => set((s) => ({ jobs: [j, ...s.jobs.filter((x) => x.id !== j.id)] })),
 }));
 
+onSessionEnd(() => {
+  for (const job of useJobs.getState().jobs) if (job.url) URL.revokeObjectURL(job.url);
+  useJobs.setState({ jobs: [] });
+});
+
 type RangeKey = "24h" | "7d" | "30d" | "custom";
 const RANGE_MS = { "24h": 86_400_000, "7d": 7 * 86_400_000, "30d": 30 * 86_400_000 } as const;
-const toLocal = (t: number) => new Date(t - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+const toLocal = (t: number) =>
+  new Date(t - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
 let nextJob = 0;
+let sessionGeneration = 0;
+onSessionEnd(() => {
+  sessionGeneration++;
+});
 
 export default function ReportsPage() {
   usePageTitle("Reports", "Export readings with units, time range and quality notes.");
@@ -53,9 +64,17 @@ export default function ReportsPage() {
   const [range, setRange] = useState<RangeKey>(preFrom && preTo ? "custom" : "24h");
   const [from, setFrom] = useState(() => toLocal(preFrom ? Date.parse(preFrom) : Date.now() - 86_400_000));
   const [to, setTo] = useState(() => toLocal(preTo ? Date.parse(preTo) : Date.now()));
-  const [siteIds, setSiteIds] = useState<string[]>(() => params.getAll("sites").flatMap((s) => s.split(",")).filter(Boolean));
+  const [siteIds, setSiteIds] = useState<string[]>(() =>
+    params
+      .getAll("sites")
+      .flatMap((s) => s.split(","))
+      .filter(Boolean),
+  );
   const [metrics, setMetrics] = useState<MetricId[]>(() => {
-    const m = params.getAll("metrics").flatMap((s) => s.split(",")).filter(isMetricId);
+    const m = params
+      .getAll("metrics")
+      .flatMap((s) => s.split(","))
+      .filter(isMetricId);
     return m.length ? m : ["pm25"];
   });
   const [format, setFormat] = useState<"csv" | "pdf">("csv");
@@ -64,15 +83,22 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const siteList = sites.data?.items ?? [];
-  const shown = useMemo(() => siteList.filter((s) => s.name.toLowerCase().includes(filter.trim().toLowerCase())), [siteList, filter]);
+  const shown = useMemo(
+    () => siteList.filter((s) => s.name.toLowerCase().includes(filter.trim().toLowerCase())),
+    [siteList, filter],
+  );
   const allSites = siteIds.length === 0;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const now = Date.now();
-    const win = range === "custom" ? { from: Date.parse(from), to: Date.parse(to) } : { from: now - RANGE_MS[range], to: now };
+    const win =
+      range === "custom"
+        ? { from: Date.parse(from), to: Date.parse(to) }
+        : { from: now - RANGE_MS[range], to: now };
     if (!(win.to > win.from)) return setError("The end must be after the start.");
-    if (win.to - win.from > 90 * 86_400_000) return setError("Exports are limited to 90 days. Shorten the range.");
+    if (win.to - win.from > 90 * 86_400_000)
+      return setError("Exports are limited to 90 days. Shorten the range.");
     if (metrics.length === 0) return setError("Choose at least one metric.");
     setError(null);
     const query: ExportQuery = {
@@ -86,11 +112,20 @@ export default function ReportsPage() {
     const label = `${metrics.map((m) => METRICS[m].label).join(", ")} · ${allSites ? "all sites" : `${siteIds.length} site${siteIds.length === 1 ? "" : "s"}`} · ${format.toUpperCase()}`;
     const job: Job = { id: ++nextJob, query, label, status: "preparing", createdAt: now };
     put(job);
+    const generation = sessionGeneration;
     try {
       const { blob, filename } = await api.exportReport(query);
-      put({ ...job, status: "ready", url: URL.createObjectURL(blob), filename: filename ?? `envirowatch.${format}`, sizeKb: Math.max(1, Math.round(blob.size / 1024)) });
+      if (generation !== sessionGeneration) return;
+      put({
+        ...job,
+        status: "ready",
+        url: URL.createObjectURL(blob),
+        filename: filename ?? `envirowatch.${format}`,
+        sizeKb: Math.max(1, Math.round(blob.size / 1024)),
+      });
       toast({ title: "Export ready", description: label });
     } catch (err) {
+      if (generation !== sessionGeneration) return;
       put({ ...job, status: "failed", error: errorMessage(err) });
     }
   }
@@ -98,7 +133,11 @@ export default function ReportsPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
       <Card className="p-6" aria-labelledby="build-title">
-        <CardHeader id="build-title" title="Build an export" subtitle="Hourly min, max, mean and valid-reading count per site (daily beyond 7 days)" />
+        <CardHeader
+          id="build-title"
+          title="Build an export"
+          subtitle="Hourly min, max, mean and valid-reading count per site (daily beyond 7 days)"
+        />
         <form onSubmit={(e) => void submit(e)} noValidate className="mt-6 flex flex-col gap-6">
           <fieldset className="flex flex-col gap-3">
             <legend className="mb-2 text-label text-fg-secondary">Metrics</legend>
@@ -129,11 +168,21 @@ export default function ReportsPage() {
               <div className="flex flex-wrap gap-4">
                 <label className="flex flex-col gap-2 text-label text-fg-secondary">
                   From
-                  <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className="num h-9 rounded-pill border border-line bg-surface-2 px-4 text-data text-fg" />
+                  <input
+                    type="datetime-local"
+                    value={from}
+                    onChange={(e) => setFrom(e.target.value)}
+                    className="num h-9 rounded-pill border border-line bg-surface-2 px-4 text-data text-fg"
+                  />
                 </label>
                 <label className="flex flex-col gap-2 text-label text-fg-secondary">
                   To
-                  <input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className="num h-9 rounded-pill border border-line bg-surface-2 px-4 text-data text-fg" />
+                  <input
+                    type="datetime-local"
+                    value={to}
+                    onChange={(e) => setTo(e.target.value)}
+                    className="num h-9 rounded-pill border border-line bg-surface-2 px-4 text-data text-fg"
+                  />
                 </label>
               </div>
             )}
@@ -142,11 +191,19 @@ export default function ReportsPage() {
           <fieldset className="flex flex-col gap-3">
             <legend className="mb-2 text-label text-fg-secondary">Sites</legend>
             <div className="flex flex-wrap items-center gap-2">
-              <SearchField label="Filter sites" placeholder="Filter sites" value={filter} onChange={(e) => setFilter(e.target.value)} className="w-64" />
+              <SearchField
+                label="Filter sites"
+                placeholder="Filter sites"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-64"
+              />
               <Button size="sm" variant="ghost" onClick={() => setSiteIds([])} disabled={allSites}>
                 All sites
               </Button>
-              <span className="text-body-sm text-fg-muted">{allSites ? "All 46 sites" : `${siteIds.length} selected`}</span>
+              <span className="text-body-sm text-fg-muted">
+                {allSites ? "All 46 sites" : `${siteIds.length} selected`}
+              </span>
             </div>
             <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto rounded-md border border-line p-3 sm:grid-cols-2">
               {shown.map((s) => (
@@ -154,7 +211,9 @@ export default function ReportsPage() {
                   key={s.id}
                   label={s.name}
                   checked={siteIds.includes(s.id)}
-                  onCheckedChange={(v) => setSiteIds(v ? [...siteIds, s.id] : siteIds.filter((x) => x !== s.id))}
+                  onCheckedChange={(v) =>
+                    setSiteIds(v ? [...siteIds, s.id] : siteIds.filter((x) => x !== s.id))
+                  }
                 />
               ))}
             </div>
@@ -173,7 +232,8 @@ export default function ReportsPage() {
             />
             <Switch label="Include quality notes" checked={notes} onCheckedChange={setNotes} />
             <p className="text-body-sm text-fg-muted">
-              Every export states its units and time range (UTC). Quality notes explain what was excluded and why.
+              Every export states its units and time range (UTC). Quality notes explain what was excluded and
+              why.
             </p>
           </fieldset>
 
@@ -183,7 +243,11 @@ export default function ReportsPage() {
             </p>
           )}
           <div>
-            <Button type="submit" variant="primary" icon={<FileText size={16} strokeWidth={1.5} aria-hidden="true" />}>
+            <Button
+              type="submit"
+              variant="primary"
+              icon={<FileText size={16} strokeWidth={1.5} aria-hidden="true" />}
+            >
               Create export
             </Button>
           </div>
@@ -193,7 +257,10 @@ export default function ReportsPage() {
       <Card className="p-6" aria-labelledby="jobs-title">
         <CardHeader id="jobs-title" title="Exports" subtitle="This session, newest first" />
         {jobs.length === 0 ? (
-          <EmptyState title="No exports yet" description="Build one on the left. It appears here while it’s prepared, then as a download." />
+          <EmptyState
+            title="No exports yet"
+            description="Build one on the left. It appears here while it’s prepared, then as a download."
+          />
         ) : (
           <ul className="mt-4 flex flex-col gap-2" aria-live="polite">
             {jobs.map((j) => (
@@ -219,7 +286,12 @@ export default function ReportsPage() {
                 <p className="mt-2 flex items-center gap-2 text-body-sm">
                   {j.status === "preparing" && (
                     <>
-                      <LoaderCircle size={14} strokeWidth={1.5} className="animate-spin text-fg-muted" aria-hidden="true" />
+                      <LoaderCircle
+                        size={14}
+                        strokeWidth={1.5}
+                        className="animate-spin text-fg-muted"
+                        aria-hidden="true"
+                      />
                       <span className="text-fg-secondary">Preparing…</span>
                     </>
                   )}

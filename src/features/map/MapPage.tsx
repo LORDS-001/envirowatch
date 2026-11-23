@@ -3,6 +3,8 @@ import { Link } from "react-router";
 import { ArrowUpRight, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/endpoints";
+import { useNow } from "@/lib/hooks";
+import { staleAfterMs } from "@/lib/config";
 import { errorMessage } from "@/lib/api/client";
 import type { HeatmapSample } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
@@ -21,7 +23,10 @@ import { StateIcon } from "@/components/ui/StateIcon";
 import { useDevices, useLiveSamples, useSites } from "@/features/overview/queries";
 
 const HOUR = 3_600_000;
-const STATE_ICON: Record<SiteState, { shape: "circle" | "triangle" | "octagon"; cls: string; hollow?: boolean }> = {
+const STATE_ICON: Record<
+  SiteState,
+  { shape: "circle" | "triangle" | "octagon"; cls: string; hollow?: boolean }
+> = {
   normal: { shape: "circle", cls: "text-state-normal" },
   warn: { shape: "triangle", cls: "text-state-warn" },
   critical: { shape: "octagon", cls: "text-state-critical" },
@@ -44,7 +49,8 @@ export default function MapPage() {
   const at = step === 24 ? null : currentHour - (24 - step) * HOUR;
   const past = useQuery({
     queryKey: ["heatmap", metric, "at", at, includeSuspicious],
-    queryFn: ({ signal }) => api.heatmap(metric, { at: new Date(at!).toISOString() }, signal),
+    queryFn: ({ signal }) =>
+      api.heatmap(metric, { at: new Date(at!).toISOString(), includeSuspicious }, signal),
     enabled: at !== null,
   });
   const suspicious = useQuery({
@@ -54,9 +60,17 @@ export default function MapPage() {
     refetchInterval: 15_000,
   });
 
-  const samples: readonly HeatmapSample[] =
-    at !== null ? (past.data?.samples ?? []) : includeSuspicious ? (suspicious.data?.samples ?? live.samples) : live.samples;
-  const error = at !== null ? past.error : live.error;
+  const now = useNow();
+  const samples: readonly HeatmapSample[] = useMemo(() => {
+    const available =
+      at !== null
+        ? (past.data?.samples ?? [])
+        : includeSuspicious
+          ? (suspicious.data?.samples ?? [])
+          : live.samples;
+    return available.filter((sample) => (at ?? now) - Date.parse(sample.event_time) <= staleAfterMs);
+  }, [at, now, includeSuspicious, past.data, suspicious.data, live.samples]);
+  const error = at !== null ? past.error : includeSuspicious ? suspicious.error : live.error;
   const bySite = useMemo(() => new Map(samples.map((s) => [s.site_id, s])), [samples]);
   const ranked = useMemo(
     () => [...siteList].sort((a, b) => (bySite.get(b.id)?.value ?? -1) - (bySite.get(a.id)?.value ?? -1)),
@@ -83,15 +97,20 @@ export default function MapPage() {
           onChange={setMetric}
           options={METRIC_IDS.map((m) => ({ value: m, label: METRICS[m].label }))}
         />
-        <Switch label="Include suspicious" checked={includeSuspicious} onCheckedChange={setIncludeSuspicious} disabled={at !== null} />
+        <Switch
+          label="Include suspicious"
+          checked={includeSuspicious}
+          onCheckedChange={setIncludeSuspicious}
+        />
       </div>
 
       {/* Legend + method */}
       <div className="absolute bottom-24 left-4 z-[500] w-80 max-w-[calc(100%-32px)] rounded-lg border border-line bg-surface-1 p-4">
         <HeatLegend metric={metric} />
         <p className="mt-3 text-body-sm text-fg-muted">
-          {idwCaption(samples.length)} Faded where the nearest sensor is over 1.8 km away; blank beyond 3.2 km.
-          {includeSuspicious && at === null && " Includes suspicious readings."}
+          {idwCaption(samples.length)} Faded where the nearest sensor is over 1.8 km away; blank beyond 3.2
+          km.
+          {includeSuspicious && " Includes suspicious readings."}
         </p>
       </div>
 
@@ -122,9 +141,20 @@ export default function MapPage() {
         className="absolute top-4 right-4 bottom-4 z-[500] flex w-80 flex-col overflow-hidden rounded-lg border border-line bg-surface-1"
       >
         {error ? (
-          <ErrorState title="Couldn’t load the map data" detail={errorMessage(error)} onRetry={() => void (at ? past.refetch() : live.refetch())} />
+          <ErrorState
+            title="Couldn’t load the map data"
+            detail={errorMessage(error)}
+            onRetry={() => void (at ? past.refetch() : live.refetch())}
+          />
         ) : selectedSite ? (
-          <SitePanel siteId={selectedSite.id} name={selectedSite.name} metric={metric} sample={bySite.get(selectedSite.id)} onClose={() => setSelected(null)} past={at !== null} />
+          <SitePanel
+            siteId={selectedSite.id}
+            name={selectedSite.name}
+            metric={metric}
+            sample={bySite.get(selectedSite.id)}
+            onClose={() => setSelected(null)}
+            past={at !== null}
+          />
         ) : (
           <>
             <header className="border-b border-line p-4">
@@ -145,7 +175,9 @@ export default function MapPage() {
                     >
                       <StateIcon shape={icon.shape} hollow={icon.hollow} size={10} className={icon.cls} />
                       <span className="min-w-0 flex-1 truncate text-body text-fg-secondary">{s.name}</span>
-                      <span className="num text-data text-fg">{v === undefined ? "–" : formatMetricValue(v, metric)}</span>
+                      <span className="num text-data text-fg">
+                        {v === undefined ? "–" : formatMetricValue(v, metric)}
+                      </span>
                       <span className="w-10 text-label text-fg-muted">{METRICS[metric].unit}</span>
                     </button>
                   </li>
@@ -175,7 +207,10 @@ function SitePanel({
   past: boolean;
 }) {
   const devices = useDevices();
-  const siteDevices = useMemo(() => (devices.data?.items ?? []).filter((d) => d.site_id === siteId), [devices.data, siteId]);
+  const siteDevices = useMemo(
+    () => (devices.data?.items ?? []).filter((d) => d.site_id === siteId),
+    [devices.data, siteId],
+  );
   const latest = useDevicesLatest(siteDevices);
   const state = siteState(sample?.value, metric);
   const icon = STATE_ICON[state];
@@ -191,18 +226,36 @@ function SitePanel({
           <h2 className="text-h3 text-fg">{name}</h2>
           <p className="mt-1 text-body-sm text-fg-muted">{siteDevices.length} sensors</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Back to all sites" className="rounded-pill p-2 text-fg-muted hover:bg-surface-2 hover:text-fg">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Back to all sites"
+          className="rounded-pill p-2 text-fg-muted hover:bg-surface-2 hover:text-fg"
+        >
           <X size={16} strokeWidth={1.5} aria-hidden="true" />
         </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <p className="flex items-baseline gap-1">
-          <span className="num text-reading-xl text-fg">{sample ? formatMetricValue(sample.value, metric) : "–"}</span>
+          <span className="num text-reading-xl text-fg">
+            {sample ? formatMetricValue(sample.value, metric) : "–"}
+          </span>
           <span className="text-body-sm text-fg-muted">{METRICS[metric].unit}</span>
         </p>
-        <p className={cn("mt-1 inline-flex items-center gap-1 text-label", state === "nodata" ? "text-fg-muted" : icon.cls)}>
+        <p
+          className={cn(
+            "mt-1 inline-flex items-center gap-1 text-label",
+            state === "nodata" ? "text-fg-muted" : icon.cls,
+          )}
+        >
           <StateIcon shape={icon.shape} hollow={icon.hollow} size={10} />
-          {state === "nodata" ? "No valid reading" : state === "normal" ? "Within limit" : state === "warn" ? "Above warning limit" : "Above critical limit"}
+          {state === "nodata"
+            ? "No valid reading"
+            : state === "normal"
+              ? "Within limit"
+              : state === "warn"
+                ? "Above warning limit"
+                : "Above critical limit"}
         </p>
         <p className="mt-2 text-body-sm text-fg-muted">
           {sample ? (
@@ -225,7 +278,9 @@ function SitePanel({
                 return (
                   <li key={m} className="flex h-10 items-center justify-between">
                     <span className="text-body text-fg-secondary">{METRICS[m].label}</span>
-                    <span className="num text-data text-fg">{mean === null ? "–" : formatReading(mean, m)}</span>
+                    <span className="num text-data text-fg">
+                      {mean === null ? "–" : formatReading(mean, m)}
+                    </span>
                   </li>
                 );
               })}
@@ -233,12 +288,17 @@ function SitePanel({
 
             <h3 className="mt-6 text-label text-fg-muted">Sensors needing a look</h3>
             {flagged.length === 0 ? (
-              <p className="mt-2 text-body-sm text-fg-secondary">Every sensor here reports valid {METRICS[metric].label}.</p>
+              <p className="mt-2 text-body-sm text-fg-secondary">
+                Every sensor here reports valid {METRICS[metric].label}.
+              </p>
             ) : (
               <ul className="mt-2 flex flex-col gap-2">
                 {flagged.map((d) => (
                   <li key={d.deviceId} className="flex items-center justify-between gap-2">
-                    <Link to={`/devices/${d.deviceId}`} className="num text-data text-fg-secondary underline-offset-4 hover:text-fg hover:underline">
+                    <Link
+                      to={`/devices/${d.deviceId}`}
+                      className="num text-data text-fg-secondary underline-offset-4 hover:text-fg hover:underline"
+                    >
                       {d.deviceId}
                     </Link>
                     <QualityFlag quality={d.readings[metric]!.q} />

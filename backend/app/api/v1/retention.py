@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
@@ -16,6 +16,12 @@ class RetentionBody(BaseModel):
     hourly_days: int = Field(ge=1, le=3650)
     daily_days: int = Field(ge=1, le=3650)
     ingestion_events_days: int = Field(ge=1, le=3650)
+
+    @model_validator(mode="after")
+    def ordered_periods(self):
+        if not self.raw_days <= self.hourly_days <= self.daily_days:
+            raise ValueError("Retention must satisfy raw days ≤ hourly days ≤ daily days")
+        return self
 
 
 def _out(row: RetentionSetting) -> dict:

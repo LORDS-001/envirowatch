@@ -30,7 +30,9 @@ test("journey 1: admin registers a sensor, sees the key once, and it comes onlin
   await expect(page.getByLabel("Device key")).toHaveCount(0);
 });
 
-test("journey 2: operator opens a pollution alert, checks context, acknowledges, and it resolves", async ({ page }) => {
+test("journey 2: operator opens a pollution alert, checks context, acknowledges, and it resolves", async ({
+  page,
+}) => {
   test.slow();
   await signIn(page, "operator");
   await page.goto("/alerts");
@@ -39,7 +41,7 @@ test("journey 2: operator opens a pollution alert, checks context, acknowledges,
   const drawer = page.getByRole("dialog");
   await expect(drawer.getByRole("heading", { name: "Timeline" })).toBeVisible();
   await expect(drawer.getByRole("heading", { name: "Sensors at this site" })).toBeVisible();
-  await expect(drawer.getByText("Notified by Webhook")).toBeVisible();
+  await expect(drawer.getByText("Webhook notification")).toBeVisible();
   await expect(drawer.getByText("Failed", { exact: true })).toBeVisible();
 
   await drawer.getByRole("button", { name: "Acknowledge alert" }).click();
@@ -51,7 +53,9 @@ test("journey 2: operator opens a pollution alert, checks context, acknowledges,
   await expect(drawer.getByText("Resolved", { exact: true }).first()).toBeVisible({ timeout: 40_000 });
 });
 
-test("journey 3: a public visitor reads approved readings and the map without signing in", async ({ page }) => {
+test("journey 3: a public visitor reads approved readings and the map without signing in", async ({
+  page,
+}) => {
   await page.goto("/public");
   await expect(page.getByRole("heading", { level: 1, name: /^Air is .+ in Yaba/ })).toBeVisible();
   await page.getByLabel("Your area").selectOption({ label: "Apapa Port" });
@@ -65,7 +69,9 @@ test("journey 3: a public visitor reads approved readings and the map without si
   await expect(page.locator(".leaflet-marker-icon").first()).toBeVisible();
 });
 
-test("journey 4: a fault-injection run reports detected, missed and false alerts with recall and precision", async ({ page }) => {
+test("journey 4: a fault-injection run reports detected, missed and false alerts with recall and precision", async ({
+  page,
+}) => {
   test.slow();
   await signIn(page, "admin");
   await page.goto("/simulator");
@@ -77,8 +83,12 @@ test("journey 4: a fault-injection run reports detected, missed and false alerts
   await expect(page.getByText("Completed", { exact: true })).toBeVisible({ timeout: 40_000 });
   await expect(page.getByText(/TP \/ \(TP \+ FN\) = \d+ \/ \d+/)).toBeVisible();
   // Detectors aren't perfect: some faults are missed and some alerts are false.
-  const recall = (await page.getByText(/TP \/ \(TP \+ FN\) = \d+ \/ \d+/).textContent())!.match(/= (\d+) \/ (\d+)/)!;
-  const precision = (await page.getByText(/TP \/ \(TP \+ FP\) = \d+ \/ \d+/).textContent())!.match(/= (\d+) \/ (\d+)/)!;
+  const recall = (await page.getByText(/TP \/ \(TP \+ FN\) = \d+ \/ \d+/).textContent())!.match(
+    /= (\d+) \/ (\d+)/,
+  )!;
+  const precision = (await page.getByText(/TP \/ \(TP \+ FP\) = \d+ \/ \d+/).textContent())!.match(
+    /= (\d+) \/ (\d+)/,
+  )!;
   expect(Number(recall[1])).toBeGreaterThan(0);
   expect(Number(recall[2])).toBeGreaterThan(Number(recall[1]));
   expect(Number(precision[2])).toBeGreaterThan(Number(precision[1]));

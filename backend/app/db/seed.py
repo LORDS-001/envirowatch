@@ -3,6 +3,7 @@ import re
 from sqlalchemy import select
 
 from app.core.security import hash_password
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models import Organization, Site, User, Alert, AlertRule, NotificationAttempt
 
@@ -41,6 +42,8 @@ def site_id(name: str) -> str:
 
 
 def seed() -> None:
+    if settings.environment == "production":
+        raise RuntimeError("Demo seeding is disabled in production")
     with SessionLocal() as db:
         org = db.scalar(select(Organization).where(Organization.name == ORG_NAME))
         if org is None:

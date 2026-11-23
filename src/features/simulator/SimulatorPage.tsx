@@ -6,6 +6,7 @@ import { errorMessage } from "@/lib/api/client";
 import type { SimEvent, SimFault, SimRun } from "@/lib/api/types";
 import { cn } from "@/lib/cn";
 import { config } from "@/lib/config";
+import { useNow } from "@/lib/hooks";
 import { evaluate } from "@/lib/evaluation";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { BentoGrid, span } from "@/components/layout/BentoGrid";
@@ -60,7 +61,13 @@ export default function SimulatorPage() {
   const faultsError = scenario === "custom" && faults.length === 0 ? "Choose at least one fault" : null;
 
   const start = useMutation({
-    mutationFn: () => api.startSimulation({ scenario, seed: seedNum, faults: scenario === "custom" ? faults : [], speed: Number(speed) }),
+    mutationFn: () =>
+      api.startSimulation({
+        scenario,
+        seed: seedNum,
+        faults: scenario === "custom" ? faults : [],
+        speed: Number(speed),
+      }),
     onSuccess: (r) => {
       qc.setQueryData(["simulator"], r);
       toast({ title: "Run started", description: `Seed ${seedNum}, ${Number(speed)}× speed` });
@@ -71,7 +78,8 @@ export default function SimulatorPage() {
     onSuccess: (r, action) => {
       qc.setQueryData(["simulator"], r);
       setConfirmStop(false);
-      if (action === "stop") toast({ title: "Run stopped", description: "Faults still pending are counted as missed." });
+      if (action === "stop")
+        toast({ title: "Run stopped", description: "Faults still pending are counted as missed." });
     },
   });
 
@@ -80,7 +88,11 @@ export default function SimulatorPage() {
   return (
     <BentoGrid>
       <Card className={cn(span(4), "p-6")} aria-labelledby="scenario-title">
-        <CardHeader id="scenario-title" title="Scenario" subtitle="Same seed, same faults, same results." />
+        <CardHeader
+          id="scenario-title"
+          title="Scenario"
+          subtitle="Same seed, same fault schedule. Results come from the real ingestion and health detectors in an isolated sandbox."
+        />
         <form
           noValidate
           className="mt-6 flex flex-col gap-6"
@@ -94,7 +106,11 @@ export default function SimulatorPage() {
             {(
               [
                 ["baseline", "Baseline", "30 simulated minutes, no injected faults. Measures false alerts."],
-                ["fault_hour", "One-hour fault injection", "Every fault type, about 32 injections over 60 simulated minutes."],
+                [
+                  "fault_hour",
+                  "One-hour fault injection",
+                  "Every fault type, about 32 injections over 60 simulated minutes.",
+                ],
                 ["custom", "Custom mix", "Choose which faults to inject."],
               ] as const
             ).map(([value, label, detail]) => (
@@ -106,7 +122,15 @@ export default function SimulatorPage() {
                   scenario === value ? "border-brand bg-brand-subtle" : "border-line hover:bg-surface-2",
                 )}
               >
-                <input id={`scenario-${value}`} type="radio" name="scenario" value={value} checked={scenario === value} onChange={() => setScenario(value)} className="row-span-2 mt-1 accent-brand" />
+                <input
+                  id={`scenario-${value}`}
+                  type="radio"
+                  name="scenario"
+                  value={value}
+                  checked={scenario === value}
+                  onChange={() => setScenario(value)}
+                  className="row-span-2 mt-1 accent-brand"
+                />
                 <span className="text-body text-fg">{label}</span>
                 <span className="text-body-sm text-fg-muted">{detail}</span>
               </label>
@@ -121,14 +145,28 @@ export default function SimulatorPage() {
                   label={f.label}
                   description={f.detail}
                   checked={faults.includes(f.value)}
-                  onCheckedChange={(v) => setFaults(v ? [...faults, f.value] : faults.filter((x) => x !== f.value))}
+                  onCheckedChange={(v) =>
+                    setFaults(v ? [...faults, f.value] : faults.filter((x) => x !== f.value))
+                  }
                 />
               ))}
-              {faultsError && <p role="alert" className="text-body-sm text-state-critical">{faultsError}</p>}
+              {faultsError && (
+                <p role="alert" className="text-body-sm text-state-critical">
+                  {faultsError}
+                </p>
+              )}
             </fieldset>
           )}
           <div className="grid grid-cols-2 gap-4">
-            <TextField label="Seed" mono inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} error={seedError} disabled={!!active} />
+            <TextField
+              label="Seed"
+              mono
+              inputMode="numeric"
+              value={seed}
+              onChange={(e) => setSeed(e.target.value)}
+              error={seedError}
+              disabled={!!active}
+            />
             <div className="flex flex-col gap-2">
               <span className="text-label text-fg-secondary">Speed</span>
               <Segmented
@@ -142,8 +180,18 @@ export default function SimulatorPage() {
               />
             </div>
           </div>
-          {start.error && <p role="alert" className="text-body-sm text-state-critical">{errorMessage(start.error)}</p>}
-          <Button type="submit" variant="primary" loading={start.isPending} disabled={!!active} icon={<Play size={16} strokeWidth={2} aria-hidden="true" />}>
+          {start.error && (
+            <p role="alert" className="text-body-sm text-state-critical">
+              {errorMessage(start.error)}
+            </p>
+          )}
+          <Button
+            type="submit"
+            variant="primary"
+            loading={start.isPending}
+            disabled={!!active}
+            icon={<Play size={16} strokeWidth={2} aria-hidden="true" />}
+          >
             {run && !active ? "Start new run" : "Start run"}
           </Button>
         </form>
@@ -152,13 +200,20 @@ export default function SimulatorPage() {
       <div className={cn(span(8), "flex flex-col gap-4")}>
         {status.error ? (
           <Card className="p-6">
-            <ErrorState title="Couldn’t load the simulator" detail={errorMessage(status.error)} onRetry={() => void status.refetch()} />
+            <ErrorState
+              title="Couldn’t load the simulator"
+              detail={errorMessage(status.error)}
+              onRetry={() => void status.refetch()}
+            />
           </Card>
         ) : status.isLoading ? (
           <Skeleton className="h-64 rounded-lg" />
         ) : !run ? (
           <Card className="p-6">
-            <EmptyState title="No run yet" description="Pick a scenario and start a run. Ground truth and detections appear here as it plays." />
+            <EmptyState
+              title="No run yet"
+              description="Pick a scenario and start a run. Ground truth and detections appear here as it plays."
+            />
           </Card>
         ) : (
           <>
@@ -189,7 +244,12 @@ export default function SimulatorPage() {
   );
 }
 
-const STATUS_WORD: Record<SimRun["status"], string> = { running: "Running", paused: "Paused", stopped: "Stopped", completed: "Completed" };
+const STATUS_WORD: Record<SimRun["status"], string> = {
+  running: "Running",
+  paused: "Paused",
+  stopped: "Stopped",
+  completed: "Completed",
+};
 
 function SimulatorControl({
   run,
@@ -205,6 +265,11 @@ function SimulatorControl({
   onStop: () => void;
 }) {
   const e = evaluate(run);
+  const now = useNow();
+  const workerStalled =
+    !config.useMocks &&
+    run.status === "running" &&
+    now - Date.parse(run.worker_heartbeat_at ?? run.started_at) > 10_000;
   const progress = run.elapsed_s / run.duration_s;
   const active = run.status === "running" || run.status === "paused";
   const tiles: Array<[string, number, string]> = [
@@ -215,13 +280,25 @@ function SimulatorControl({
   ];
   return (
     <Card className="p-6" aria-labelledby="run-title">
+      {workerStalled && (
+        <p role="status" className="mb-4 text-body text-state-warn">
+          The simulator worker is not reporting progress. Start or check the simulation worker; no detections
+          are fabricated while it is offline.
+        </p>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 id="run-title" className="text-h2 text-fg">
-            {run.scenario === "baseline" ? "Baseline" : run.scenario === "fault_hour" ? "One-hour fault injection" : "Custom mix"}
+            {run.scenario === "baseline"
+              ? "Baseline"
+              : run.scenario === "fault_hour"
+                ? "One-hour fault injection"
+                : "Custom mix"}
           </h2>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-body-sm text-fg-muted">
-            <span className="num inline-flex h-[22px] items-center rounded-pill bg-surface-2 px-2 text-data text-fg-secondary">seed {run.seed}</span>
+            <span className="num inline-flex h-[22px] items-center rounded-pill bg-surface-2 px-2 text-data text-fg-secondary">
+              seed {run.seed}
+            </span>
             <span>{run.speed}× speed</span>
             <span aria-live="polite">{STATUS_WORD[run.status]}</span>
           </p>
@@ -229,15 +306,28 @@ function SimulatorControl({
         {active && (
           <div className="flex gap-2">
             {run.status === "running" ? (
-              <Button onClick={onPause} disabled={busy} icon={<Pause size={16} strokeWidth={1.5} aria-hidden="true" />}>
+              <Button
+                onClick={onPause}
+                disabled={busy}
+                icon={<Pause size={16} strokeWidth={1.5} aria-hidden="true" />}
+              >
                 Pause
               </Button>
             ) : (
-              <Button onClick={onResume} disabled={busy} icon={<Play size={16} strokeWidth={1.5} aria-hidden="true" />}>
+              <Button
+                onClick={onResume}
+                disabled={busy}
+                icon={<Play size={16} strokeWidth={1.5} aria-hidden="true" />}
+              >
                 Resume
               </Button>
             )}
-            <Button variant="destructive" onClick={onStop} disabled={busy} icon={<Square size={14} strokeWidth={1.5} aria-hidden="true" />}>
+            <Button
+              variant="destructive"
+              onClick={onStop}
+              disabled={busy}
+              icon={<Square size={14} strokeWidth={1.5} aria-hidden="true" />}
+            >
               Stop
             </Button>
           </div>
@@ -245,7 +335,10 @@ function SimulatorControl({
       </div>
 
       <div className="mt-6 flex items-baseline justify-between">
-        <span className="num text-reading-xl text-fg" aria-label={`Simulated time ${hms(run.elapsed_s)} of ${hms(run.duration_s)}`}>
+        <span
+          className="num text-reading-xl text-fg"
+          aria-label={`Simulated time ${hms(run.elapsed_s)} of ${hms(run.duration_s)}`}
+        >
           {hms(run.elapsed_s)}
         </span>
         <span className="num text-data text-fg-muted">of {hms(run.duration_s)} simulated</span>
@@ -258,7 +351,10 @@ function SimulatorControl({
         aria-valuenow={Math.round(progress * 100)}
         className="mt-2 h-2 overflow-hidden rounded-pill bg-surface-3"
       >
-        <div className="h-full rounded-pill bg-fg-secondary transition-[width] duration-sweep ease-standard" style={{ width: `${progress * 100}%` }} />
+        <div
+          className="h-full rounded-pill bg-fg-secondary transition-[width] duration-sweep ease-standard"
+          style={{ width: `${progress * 100}%` }}
+        />
       </div>
 
       <dl className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -277,7 +373,9 @@ function SimulatorControl({
         <div className="rounded-md border border-line p-4">
           <dt className="text-body-sm text-fg-secondary">Recall</dt>
           <dd>
-            <span className="num text-reading-xl text-fg">{e.recall === null ? "–" : formatPercent(e.recall, 1)}</span>
+            <span className="num text-reading-xl text-fg">
+              {e.recall === null ? "–" : formatPercent(e.recall, 1)}
+            </span>
             <span className="mt-1 block text-body-sm text-fg-muted">
               TP / (TP + FN) = {e.detected} / {e.detected + e.missed}
               {e.pending ? `, ${e.pending} still pending` : ""}
@@ -287,7 +385,9 @@ function SimulatorControl({
         <div className="rounded-md border border-line p-4">
           <dt className="text-body-sm text-fg-secondary">Precision</dt>
           <dd>
-            <span className="num text-reading-xl text-fg">{e.precision === null ? "–" : formatPercent(e.precision, 1)}</span>
+            <span className="num text-reading-xl text-fg">
+              {e.precision === null ? "–" : formatPercent(e.precision, 1)}
+            </span>
             <span className="mt-1 block text-body-sm text-fg-muted">
               TP / (TP + FP) = {e.detected} / {e.detected + e.falseAlerts}
             </span>
@@ -295,13 +395,25 @@ function SimulatorControl({
         </div>
       </dl>
       {e.meanDelayS !== null && (
-        <p className="mt-4 text-body-sm text-fg-secondary">Mean time to detect: {formatNumber(e.meanDelayS, 0)} s simulated.</p>
+        <p className="mt-4 text-body-sm text-fg-secondary">
+          Mean time to detect: {formatNumber(e.meanDelayS, 0)} s simulated.
+        </p>
       )}
     </Card>
   );
 }
 
-type Row = (SimEvent & { kind: "fault" }) | { kind: "false"; id: string; device_id: string; fault_type: SimFault; injected_s: null; detected_s: number; outcome: "false" };
+type Row =
+  | (SimEvent & { kind: "fault" })
+  | {
+      kind: "false";
+      id: string;
+      device_id: string;
+      fault_type: SimFault;
+      injected_s: null;
+      detected_s: number;
+      outcome: "false";
+    };
 
 const OUTCOME = {
   detected: { shape: "circle", cls: "text-state-normal", word: "Detected" },
@@ -316,21 +428,56 @@ function GroundTruth({ run }: { run: SimRun }) {
     () =>
       [
         ...run.events.map((e) => ({ ...e, kind: "fault" as const })),
-        ...run.false_alerts.map((f) => ({ ...f, kind: "false" as const, injected_s: null, outcome: "false" as const })),
+        ...run.false_alerts.map((f) => ({
+          ...f,
+          kind: "false" as const,
+          injected_s: null,
+          outcome: "false" as const,
+        })),
       ].sort((a, b) => (a.injected_s ?? a.detected_s ?? 0) - (b.injected_s ?? b.detected_s ?? 0)),
     [run],
   );
   const columns = useMemo<ColumnDef<Row, unknown>[]>(
     () => [
-      { id: "id", header: "ID", accessorFn: (r) => r.id, cell: ({ getValue }) => <span className="num text-data">{getValue() as string}</span>, meta: { width: "80px" } },
-      { id: "fault", header: "Fault", accessorFn: (r) => FAULT_LABEL[r.fault_type], meta: { width: "minmax(140px,1fr)" } },
-      { id: "device", header: "Device", accessorFn: (r) => r.device_id, cell: ({ getValue }) => <span className="num text-data">{getValue() as string}</span>, meta: { width: "110px" } },
-      { id: "injected", header: "Injected", accessorFn: (r) => r.injected_s ?? -1, cell: ({ row }) => (row.original.injected_s === null ? "–" : hms(row.original.injected_s)), meta: { numeric: true, width: "100px" } },
-      { id: "detected", header: "Detected", accessorFn: (r) => r.detected_s ?? -1, cell: ({ row }) => (row.original.detected_s === null ? "–" : hms(row.original.detected_s)), meta: { numeric: true, width: "100px" } },
+      {
+        id: "id",
+        header: "ID",
+        accessorFn: (r) => r.id,
+        cell: ({ getValue }) => <span className="num text-data">{getValue() as string}</span>,
+        meta: { width: "80px" },
+      },
+      {
+        id: "fault",
+        header: "Fault",
+        accessorFn: (r) => FAULT_LABEL[r.fault_type],
+        meta: { width: "minmax(140px,1fr)" },
+      },
+      {
+        id: "device",
+        header: "Device",
+        accessorFn: (r) => r.device_id,
+        cell: ({ getValue }) => <span className="num text-data">{getValue() as string}</span>,
+        meta: { width: "110px" },
+      },
+      {
+        id: "injected",
+        header: "Injected",
+        accessorFn: (r) => r.injected_s ?? -1,
+        cell: ({ row }) => (row.original.injected_s === null ? "–" : hms(row.original.injected_s)),
+        meta: { numeric: true, width: "100px" },
+      },
+      {
+        id: "detected",
+        header: "Detected",
+        accessorFn: (r) => r.detected_s ?? -1,
+        cell: ({ row }) => (row.original.detected_s === null ? "–" : hms(row.original.detected_s)),
+        meta: { numeric: true, width: "100px" },
+      },
       {
         id: "delay",
         header: "Delay",
-        accessorFn: (r) => (r.detected_s !== null && r.injected_s !== null ? r.detected_s - r.injected_s : -1),
+        accessorFn: (r) =>
+          r.detected_s !== null && r.injected_s !== null ? r.detected_s - r.injected_s : -1,
         cell: ({ getValue }) => ((getValue() as number) < 0 ? "–" : `${getValue() as number} s`),
         meta: { numeric: true, width: "90px" },
       },
@@ -363,7 +510,16 @@ function GroundTruth({ run }: { run: SimRun }) {
       `# Recall TP/(TP+FN) = ${e.recall === null ? "n/a" : e.recall.toFixed(4)}; precision TP/(TP+FP) = ${e.precision === null ? "n/a" : e.precision.toFixed(4)}`,
       "id,kind,fault_type,device_id,injected_s,detected_s,delay_s,outcome",
       ...rows.map((r) =>
-        [r.id, r.kind, r.fault_type, r.device_id, r.injected_s ?? "", r.detected_s ?? "", r.detected_s !== null && r.injected_s !== null ? r.detected_s - r.injected_s : "", r.outcome].join(","),
+        [
+          r.id,
+          r.kind,
+          r.fault_type,
+          r.device_id,
+          r.injected_s ?? "",
+          r.detected_s ?? "",
+          r.detected_s !== null && r.injected_s !== null ? r.detected_s - r.injected_s : "",
+          r.outcome,
+        ].join(","),
       ),
     ];
     const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
@@ -382,7 +538,12 @@ function GroundTruth({ run }: { run: SimRun }) {
         title="Ground truth against detections"
         subtitle="Every injected fault and what the pipeline did with it, plus alerts that fired with nothing injected"
         actions={
-          <Button size="sm" onClick={exportCsv} disabled={rows.length === 0} icon={<Download size={14} strokeWidth={1.5} aria-hidden="true" />}>
+          <Button
+            size="sm"
+            onClick={exportCsv}
+            disabled={rows.length === 0}
+            icon={<Download size={14} strokeWidth={1.5} aria-hidden="true" />}
+          >
             Export evaluation
           </Button>
         }
@@ -395,7 +556,10 @@ function GroundTruth({ run }: { run: SimRun }) {
           caption="Ground truth against detections"
           height={420}
           compact
-          empty={{ title: "Nothing injected yet", description: "Faults appear here as the run reaches them." }}
+          empty={{
+            title: "Nothing injected yet",
+            description: "Faults appear here as the run reaches them.",
+          }}
         />
       </div>
     </Card>

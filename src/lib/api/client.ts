@@ -28,11 +28,17 @@ type UnauthorizedHandler = () => void;
 
 let getToken: TokenGetter = () => null;
 let onUnauthorized: UnauthorizedHandler = () => {};
+let refreshSession: (() => Promise<boolean>) | undefined;
 
 /** The session module registers itself here, so the client never imports app state. */
-export function configureApiClient(opts: { getToken: TokenGetter; onUnauthorized: UnauthorizedHandler }) {
+export function configureApiClient(opts: {
+  getToken: TokenGetter;
+  onUnauthorized: UnauthorizedHandler;
+  refreshSession?: () => Promise<boolean>;
+}) {
   getToken = opts.getToken;
   onUnauthorized = opts.onUnauthorized;
+  refreshSession = opts.refreshSession;
 }
 
 export type Query = Record<string, string | number | boolean | null | undefined | readonly string[]>;
@@ -57,9 +63,13 @@ interface RequestOptions<T extends z.ZodType> {
   signal?: AbortSignal;
   /** Public endpoints skip the auth header and 401 handling. */
   anonymous?: boolean;
+  retried?: boolean;
 }
 
-export async function request<T extends z.ZodType>(path: string, opts: RequestOptions<T>): Promise<z.infer<T>> {
+export async function request<T extends z.ZodType>(
+  path: string,
+  opts: RequestOptions<T>,
+): Promise<z.infer<T>> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   const token = opts.anonymous ? null : getToken();
@@ -79,7 +89,11 @@ export async function request<T extends z.ZodType>(path: string, opts: RequestOp
     throw new ApiError(0, "Couldn't reach the server. Check your connection", path);
   }
 
+  if (!opts.anonymous && token !== getToken()) throw new DOMException("Session changed", "AbortError");
+
   if (res.status === 401 && !opts.anonymous) {
+    if (!opts.retried && refreshSession && (await refreshSession()))
+      return request(path, { ...opts, retried: true });
     onUnauthorized();
     throw new ApiError(401, "Your session has ended. Sign in again", path);
   }
@@ -106,7 +120,7 @@ export async function request<T extends z.ZodType>(path: string, opts: RequestOp
 /** File downloads (CSV, PDF). Same auth and error handling as `request`, no schema. */
 export async function requestBlob(
   path: string,
-  opts: { query?: Query; anonymous?: boolean; signal?: AbortSignal } = {},
+  opts: { query?: Query; anonymous?: boolean; signal?: AbortSignal; retried?: boolean } = {},
 ): Promise<{ blob: Blob; filename: string | null }> {
   const headers: Record<string, string> = {};
   const token = opts.anonymous ? null : getToken();
@@ -118,7 +132,10 @@ export async function requestBlob(
     if ((err as Error).name === "AbortError") throw err;
     throw new ApiError(0, "Couldn't reach the server. Check your connection", path);
   }
+  if (!opts.anonymous && token !== getToken()) throw new DOMException("Session changed", "AbortError");
   if (res.status === 401 && !opts.anonymous) {
+    if (!opts.retried && refreshSession && (await refreshSession()))
+      return requestBlob(path, { ...opts, retried: true });
     onUnauthorized();
     throw new ApiError(401, "Your session has ended. Sign in again", path);
   }

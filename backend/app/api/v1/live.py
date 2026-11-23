@@ -41,11 +41,24 @@ async def live(websocket: WebSocket):
     async def sender() -> None:
         try:
             while True:
-                await websocket.send_text(await queue.get())
+                message = await queue.get()
+                if message is None:
+                    await websocket.close(code=1013, reason="Resynchronize after a slow connection")
+                    return
+                await websocket.send_text(message)
         except Exception:
             return
 
     send_task = asyncio.create_task(sender())
+    async def validate_session() -> None:
+        while True:
+            await asyncio.sleep(30)
+            current_org = await run_in_threadpool(_org_for_cookie, websocket.cookies.get("refresh_token"))
+            if current_org != org:
+                await websocket.close(code=1008, reason="Session ended; reconnect")
+                return
+
+    validation_task = asyncio.create_task(validate_session())
     try:
         while True:
             await websocket.receive_text()  # clients send nothing; this notices disconnects
@@ -53,4 +66,5 @@ async def live(websocket: WebSocket):
         pass
     finally:
         send_task.cancel()
+        validation_task.cancel()
         hub.remove(org, queue)

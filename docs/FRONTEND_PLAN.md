@@ -1,5 +1,7 @@
 # EnviroWatch frontend plan
 
+> Historical frontend plan. The “done” status below refers to the 2026-11-11 frontend/mock milestone, not production product completion. Real-service implementation and remaining acceptance gates are tracked in `IMPLEMENTATION_STATUS.md` (2026-11-22).
+
 Status: Phases 0–6 done (2026-11-11). Open: the backend contract (Q5, API_GAPS) and the Lighthouse performance follow-up below. This plan follows `CLAUDE_CODE_PROMPT.md`; where the two differ, the brief wins and the difference is logged in `DECISIONS.md`.
 
 ## Inputs actually received

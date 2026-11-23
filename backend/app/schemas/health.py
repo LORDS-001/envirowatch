@@ -37,6 +37,11 @@ class IngestionEventOut(BaseModel):
     reason: str | None
     received_at: datetime
 
+
+class IngestionEventPage(BaseModel):
+    items: list[IngestionEventOut]
+    next_cursor: str | None = None
+
 class HealthSummaryPage(BaseModel):
     items: list[HealthSummaryItem]
     next_cursor: str | None = None

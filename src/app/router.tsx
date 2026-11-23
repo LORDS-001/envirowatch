@@ -4,10 +4,13 @@ import { NotFoundPage } from "@/features/placeholder/StatusPage";
 import { RequireAuth, RequireRole } from "./guards";
 import { RouteError } from "./RouteError";
 
-const page = (load: () => Promise<{ default: React.ComponentType }>) => async () => ({ Component: (await load()).default });
+const page = (load: () => Promise<{ default: React.ComponentType }>) => async () => ({
+  Component: (await load()).default,
+});
 
 export const router = createBrowserRouter([
   { path: "/login", lazy: page(() => import("@/features/auth/LoginPage")) },
+  { path: "/accept-invitation", lazy: page(() => import("@/features/auth/AcceptInvitationPage")) },
   {
     path: "/public",
     lazy: page(() => import("@/features/public/PublicLayout")),

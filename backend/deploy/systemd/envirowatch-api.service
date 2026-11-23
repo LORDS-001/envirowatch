@@ -1,0 +1,28 @@
+[Unit]
+Description=EnviroWatch API
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=envirowatch
+Group=envirowatch
+WorkingDirectory=/opt/envirowatch/backend
+EnvironmentFile=/etc/envirowatch/backend.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/opt/envirowatch/backend/.venv/bin/python -c "from app.core.config import settings; raise SystemExit(0 if settings.environment == 'production' else 'ENVIRONMENT=production is required')"
+ExecStart=/opt/envirowatch/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1 --limit-concurrency 200 --timeout-keep-alive 5 --ws-max-size 65536
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

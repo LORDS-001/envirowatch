@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.measurement import MetricId
 
@@ -12,7 +12,7 @@ Channel = Literal["email", "sms", "webhook"]
 class NotificationAttemptOut(BaseModel):
     alert_id: str
     channel: Channel
-    outcome: Literal["delivered", "failed", "pending"]
+    outcome: Literal["delivered", "failed", "pending", "not_configured"]
     attempted_at: datetime
 
 
@@ -56,6 +56,8 @@ class AlertRuleOut(BaseModel):
 
 
 class AlertRulePatch(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+
     name: str | None = Field(default=None, min_length=1, max_length=200)
     threshold: float | None = None
     hysteresis: float | None = Field(default=None, ge=0)
@@ -63,6 +65,12 @@ class AlertRulePatch(BaseModel):
     cooldown_min: int | None = Field(default=None, ge=0, le=1440)
     channels: list[Channel] | None = None
     enabled: bool | None = None
+
+    @model_validator(mode="after")
+    def non_null_changes(self):
+        if any(getattr(self, field) is None for field in self.model_fields_set):
+            raise ValueError("Rule fields cannot be null; omit unchanged fields")
+        return self
 
 
 class AlertRulePage(BaseModel):
