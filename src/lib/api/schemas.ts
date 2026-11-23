@@ -17,6 +17,7 @@ export const UserSchema = z.object({
   organization_id: z.string(),
   email: z.string(),
   role: RoleSchema,
+  invitation_pending: z.boolean().optional(),
 });
 
 /** GAP: login response shape. */
@@ -94,7 +95,7 @@ export const HeatmapSchema = z.object({
 export const NotificationAttemptSchema = z.object({
   alert_id: z.string(),
   channel: z.enum(["email", "sms", "webhook"]),
-  outcome: z.enum(["delivered", "failed", "pending"]),
+  outcome: z.enum(["delivered", "failed", "pending", "not_configured"]),
   attempted_at: isoDate,
 });
 
@@ -130,7 +131,7 @@ export const SystemHealthSchema = z.object({
   error_rate: z.number(),
   db_writes_per_s: z.number(),
   /** GAP: share of readings in the last 24 h stored as valid. */
-  valid_rate_24h: z.number().optional(),
+  valid_rate_24h: z.number().nullable().optional(),
 });
 
 /** GAP: daily quality breakdown for QualityBlocks. */
@@ -139,7 +140,7 @@ export const QualityDaySchema = z.object({
   valid: z.number().int(),
   estimated: z.number().int(),
   suspicious: z.number().int(),
-  missing: z.number().int(),
+  missing: z.number().int().nullable(),
 });
 export const QualitySummarySchema = z.object({ days: z.array(QualityDaySchema) });
 
@@ -149,7 +150,12 @@ export const PublicAreaSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
   readings: z.array(
-    z.object({ metric: MetricIdSchema, value: z.number(), event_time: isoDate, quality_status: QualityStatusSchema }),
+    z.object({
+      metric: MetricIdSchema,
+      value: z.number(),
+      event_time: isoDate,
+      quality_status: QualityStatusSchema,
+    }),
   ),
 });
 
@@ -161,7 +167,15 @@ export const PublicSummarySchema = z.object({
 // ---- Device health, ingestion and credentials ----
 
 export const DeviceHealthStatusSchema = z.enum(["online", "silent", "drifting", "suspicious", "deactivated"]);
-export const FaultTypeSchema = z.enum(["silent", "drift", "spike", "clock_error", "duplicate", "late", "network"]);
+export const FaultTypeSchema = z.enum([
+  "silent",
+  "drift",
+  "spike",
+  "clock_error",
+  "duplicate",
+  "late",
+  "network",
+]);
 
 export const DeviceHealthEventSchema = z.object({
   device_id: z.string(),
@@ -228,7 +242,15 @@ export const RetentionSchema = z.object({
 
 // ---- Simulator (GAP) ----
 
-export const SimFaultSchema = z.enum(["duplicate", "late", "silent", "clock_error", "spike", "drift", "network"]);
+export const SimFaultSchema = z.enum([
+  "duplicate",
+  "late",
+  "silent",
+  "clock_error",
+  "spike",
+  "drift",
+  "network",
+]);
 
 export const SimEventSchema = z.object({
   id: z.string(),
@@ -259,6 +281,7 @@ export const SimRunSchema = z.object({
   duration_s: z.number(),
   events: z.array(SimEventSchema),
   false_alerts: z.array(SimFalseAlertSchema),
+  worker_heartbeat_at: isoDate.nullable().optional(),
 });
 
 export const SimStatusSchema = z.object({ run: SimRunSchema.nullable() });

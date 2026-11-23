@@ -17,11 +17,12 @@ const BLOCK: Record<Exception, string> = {
   missing: "border border-dashed border-line-strong",
 };
 
-const total = (d: QualityDay) => d.valid + d.estimated + d.suspicious + d.missing;
+const total = (d: QualityDay) => d.valid + d.estimated + d.suspicious + (d.missing ?? 0);
 
 export function qualityShare(d: QualityDay, c: Category): string {
   const t = total(d);
-  return t ? formatPercent(d[c] / t, c === "valid" ? 1 : 2) : "–";
+  const value = d[c];
+  return value === null ? "Not measured" : t ? formatPercent(value / t, c === "valid" ? 1 : 2) : "–";
 }
 
 /** Round a share up to a tidy axis maximum: 1 %, 2 %, 4 %, 5 %, 10 %… */
@@ -35,11 +36,19 @@ function niceMax(share: number): number {
  * Each column stacks only the readings that weren't valid, on their own labelled scale, and states
  * the valid share as a number above the column. Exact figures are in the table view.
  */
-export const QualityBlocks = memo(function QualityBlocks({ days, height = 152 }: { days: readonly QualityDay[]; height?: number }) {
+export const QualityBlocks = memo(function QualityBlocks({
+  days,
+  height = 152,
+}: {
+  days: readonly QualityDay[];
+  height?: number;
+}) {
   const today = days.length - 1;
   // Seven one-decimal numbers don't fit side by side on a phone; whole percentages do.
   const decimals = useMediaQuery(NARROW_QUERY) ? 0 : 1;
-  const max = niceMax(Math.max(0.001, ...days.map((d) => (d.estimated + d.suspicious + d.missing) / (total(d) || 1))));
+  const max = niceMax(
+    Math.max(0.001, ...days.map((d) => (d.estimated + d.suspicious + (d.missing ?? 0)) / (total(d) || 1))),
+  );
   const ticks = [0, max / 2, max];
 
   return (
@@ -69,9 +78,13 @@ export const QualityBlocks = memo(function QualityBlocks({ days, height = 152 }:
                 <div className="relative flex w-full flex-col justify-end gap-1" style={{ height }}>
                   <div className="absolute inset-x-0 bottom-0 border-t border-line" />
                   {STACK.map((c) => {
-                    const h = (d[c] / t / max) * height;
+                    const h = ((d[c] ?? 0) / t / max) * height;
                     return h > 0 ? (
-                      <div key={c} className={cn("w-full rounded-sm", BLOCK[c])} style={{ height: Math.max(2, h - 2) }} />
+                      <div
+                        key={c}
+                        className={cn("w-full rounded-sm", BLOCK[c])}
+                        style={{ height: Math.max(2, h - 2) }}
+                      />
                     ) : null;
                   })}
                 </div>
@@ -90,18 +103,27 @@ export const QualityBlocks = memo(function QualityBlocks({ days, height = 152 }:
       </div>
 
       <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-label text-fg-secondary">
-        <li>Number above each day: valid share, %</li>
+        <li>Number above each day: valid share of received readings, %</li>
         <li className="flex items-center gap-2">
-          <span className="hatch-estimated size-3 rounded-xs border border-dashed border-fg-secondary" aria-hidden="true" />
+          <span
+            className="hatch-estimated size-3 rounded-xs border border-dashed border-fg-secondary"
+            aria-hidden="true"
+          />
           Estimated
         </li>
         <li className="flex items-center gap-2">
           <StateIcon shape="diamond" size={11} className="text-state-suspicious" /> Suspicious
         </li>
         <li className="flex items-center gap-2">
-          <span className="size-3 rounded-xs border border-dashed border-line-strong" aria-hidden="true" /> Missing
+          <span className="size-3 rounded-xs border border-dashed border-line-strong" aria-hidden="true" />{" "}
+          Missing
         </li>
       </ul>
+      {days.some((day) => day.missing === null) && (
+        <p className="mt-2 text-body-sm text-fg-muted">
+          Missing readings are not measured: reporting cadence is not configured.
+        </p>
+      )}
     </div>
   );
 });

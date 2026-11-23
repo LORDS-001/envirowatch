@@ -36,7 +36,11 @@ const STATE_OPTIONS: ReadonlyArray<{ value: StateFilter; label: string }> = [
 const ORDER = { active: 0, pending: 1, acknowledged: 2, resolved: 3 } as const;
 
 export function useAllAlerts() {
-  return useQuery({ queryKey: ["alerts", "all"], queryFn: ({ signal }) => api.alerts({}, signal), refetchInterval: 20_000 });
+  return useQuery({
+    queryKey: ["alerts", "all"],
+    queryFn: ({ signal }) => api.alerts({}, signal),
+    refetchInterval: 20_000,
+  });
 }
 
 export default function AlertsPage() {
@@ -53,7 +57,9 @@ export default function AlertsPage() {
   const filtered = useMemo(() => {
     const list = alerts.data?.items ?? [];
     return list
-      .filter((a) => (state === "all" ? true : state === "open" ? a.status !== "resolved" : a.status === state))
+      .filter((a) =>
+        state === "all" ? true : state === "open" ? a.status !== "resolved" : a.status === state,
+      )
       .filter((a) => kind === "all" || a.kind === kind)
       .filter((a) => !site || a.site_id === site)
       .sort((a, b) => ORDER[a.status] - ORDER[b.status] || Date.parse(b.opened_at) - Date.parse(a.opened_at));
@@ -83,7 +89,10 @@ export default function AlertsPage() {
           className="w-56"
           value={site}
           onChange={(e) => setSite(e.target.value)}
-          options={[{ value: "", label: "All sites" }, ...alertSites.map((s) => ({ value: s, label: siteName.get(s) ?? s }))]}
+          options={[
+            { value: "", label: "All sites" },
+            ...alertSites.map((s) => ({ value: s, label: siteName.get(s) ?? s })),
+          ]}
         />
         <p className="ml-auto text-body-sm text-fg-muted" aria-live="polite">
           {alerts.data ? `${filtered.length} alert${filtered.length === 1 ? "" : "s"}` : ""}
@@ -92,7 +101,11 @@ export default function AlertsPage() {
 
       <Card className="p-2">
         {alerts.error ? (
-          <ErrorState title="Couldn’t load alerts" detail={errorMessage(alerts.error)} onRetry={() => void alerts.refetch()} />
+          <ErrorState
+            title="Couldn’t load alerts"
+            detail={errorMessage(alerts.error)}
+            onRetry={() => void alerts.refetch()}
+          />
         ) : alerts.isLoading ? (
           <div className="flex flex-col gap-2 p-2">
             {[0, 1, 2, 3].map((i) => (
@@ -102,7 +115,11 @@ export default function AlertsPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             title={state === "open" ? "No open alerts" : "No alerts match these filters"}
-            description={state === "open" ? "Threshold and device-health alerts appear here as they open." : "Clear a filter to see more."}
+            description={
+              state === "open"
+                ? "Threshold and device-health alerts appear here as they open."
+                : "Clear a filter to see more."
+            }
             action={
               state !== "open" || kind !== "all" || site ? (
                 <Button
@@ -132,7 +149,15 @@ export default function AlertsPage() {
   );
 }
 
-function AlertDrawer({ id, onClose, siteName }: { id: string | null; onClose: () => void; siteName: Map<string, string> }) {
+function AlertDrawer({
+  id,
+  onClose,
+  siteName,
+}: {
+  id: string | null;
+  onClose: () => void;
+  siteName: Map<string, string>;
+}) {
   const qc = useQueryClient();
   const alert = useQuery({
     queryKey: ["alerts", "one", id],
@@ -147,7 +172,8 @@ function AlertDrawer({ id, onClose, siteName }: { id: string | null; onClose: ()
       void qc.invalidateQueries({ queryKey: ["alerts"] });
       toast({ title: "Alert acknowledged", description: a.title });
     },
-    onError: (err) => toast({ tone: "error", title: "Couldn’t acknowledge the alert", description: errorMessage(err) }),
+    onError: (err) =>
+      toast({ tone: "error", title: "Couldn’t acknowledge the alert", description: errorMessage(err) }),
   });
   const a = alert.data;
 
@@ -160,13 +186,15 @@ function AlertDrawer({ id, onClose, siteName }: { id: string | null; onClose: ()
         a && (
           <div className="flex items-center gap-2">
             <StatusBadge status={a.status} />
-            <span className="text-eyebrow text-fg-muted">{a.kind === "device" ? "Device" : "Environment"}</span>
+            <span className="text-eyebrow text-fg-muted">
+              {a.kind === "device" ? "Device" : "Environment"}
+            </span>
           </div>
         )
       }
       title={a?.title ?? (alert.error ? "Alert" : "Loading alert…")}
       footer={
-        a && (a.status === "active" || a.status === "pending") ? (
+        a && a.status === "active" ? (
           <Button variant="primary" loading={ack.isPending} onClick={() => ack.mutate(a.id)}>
             Acknowledge alert
           </Button>
@@ -176,7 +204,11 @@ function AlertDrawer({ id, onClose, siteName }: { id: string | null; onClose: ()
       }
     >
       {alert.error ? (
-        <ErrorState title="Couldn’t load this alert" detail={errorMessage(alert.error)} onRetry={() => void alert.refetch()} />
+        <ErrorState
+          title="Couldn’t load this alert"
+          detail={errorMessage(alert.error)}
+          onRetry={() => void alert.refetch()}
+        />
       ) : !a ? (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-6 w-1/2" />
@@ -190,7 +222,9 @@ function AlertDrawer({ id, onClose, siteName }: { id: string | null; onClose: ()
             <time dateTime={a.opened_at} title={formatUtc(a.opened_at)}>
               {formatClock(a.opened_at)}
             </time>
-            {a.corroborating_devices ? `. ${a.corroborating_devices} nearby sensors agree, so this is unlikely to be one faulty sensor.` : "."}
+            {a.corroborating_devices
+              ? `. ${a.corroborating_devices} nearby sensors agree, so this is unlikely to be one faulty sensor.`
+              : "."}
           </p>
           <section aria-labelledby="ctx-title">
             <h3 id="ctx-title" className="text-h3 text-fg">
@@ -249,12 +283,23 @@ function ContextChart({ alert }: { alert: Alert }) {
         id: "ctx",
         label: alert.device_id ?? "Site mean",
         color: "series-1" as const,
-        points: (q.data?.items ?? []).map((r) => ({ t: Date.parse(r.bucket_start), v: r.avg, quality: "valid" as const })),
+        points: (q.data?.items ?? []).map((r) => ({
+          t: Date.parse(r.bucket_start),
+          v: r.avg,
+          quality: "valid" as const,
+        })),
       },
     ],
     [q.data, alert.device_id],
   );
-  if (q.error) return <ErrorState title="Couldn’t load the readings" detail={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
+  if (q.error)
+    return (
+      <ErrorState
+        title="Couldn’t load the readings"
+        detail={errorMessage(q.error)}
+        onRetry={() => void q.refetch()}
+      />
+    );
   if (q.isLoading) return <Skeleton className="mt-4 h-52" />;
   if (alert.kind === "device" && alert.device_id && series[0]!.points.length === 0) {
     return <p className="mt-2 text-body-sm text-fg-secondary">No readings in this window.</p>;
@@ -265,7 +310,11 @@ function ContextChart({ alert }: { alert: Alert }) {
         series={series}
         gapMs={150_000}
         formatValue={(v) => formatReading(v, metric)}
-        threshold={alert.threshold !== null ? { value: alert.threshold, label: `${alert.threshold} ${def.unit} limit` } : undefined}
+        threshold={
+          alert.threshold !== null
+            ? { value: alert.threshold, label: `${alert.threshold} ${def.unit} limit` }
+            : undefined
+        }
         marker={{ t: opened, label: "Opened" }}
         height={200}
         ariaLabel={`${def.label} per minute around the alert`}
@@ -279,7 +328,10 @@ function ContextChart({ alert }: { alert: Alert }) {
 
 function NearbySensors({ siteId, alert }: { siteId: string; alert: Alert }) {
   const devices = useDevices();
-  const list = useMemo(() => (devices.data?.items ?? []).filter((d) => d.site_id === siteId).slice(0, 24), [devices.data, siteId]);
+  const list = useMemo(
+    () => (devices.data?.items ?? []).filter((d) => d.site_id === siteId).slice(0, 24),
+    [devices.data, siteId],
+  );
   const latest = useDevicesLatest(list);
   const metric = alert.metric ?? "pm25";
   if (devices.isLoading) return <Skeleton className="mt-4 h-32" />;
@@ -290,7 +342,10 @@ function NearbySensors({ siteId, alert }: { siteId: string; alert: Alert }) {
         const isAlertDevice = d.deviceId === alert.device_id;
         return (
           <li key={d.deviceId} className="flex h-10 items-center justify-between gap-4">
-            <Link to={`/devices/${d.deviceId}`} className="num text-data text-fg-secondary hover:text-fg hover:underline">
+            <Link
+              to={`/devices/${d.deviceId}`}
+              className="num text-data text-fg-secondary hover:text-fg hover:underline"
+            >
               {d.deviceId}
               {isAlertDevice && <span className="ml-2 font-sans text-label text-fg-muted">(this alert)</span>}
             </Link>
@@ -298,7 +353,9 @@ function NearbySensors({ siteId, alert }: { siteId: string; alert: Alert }) {
               {r ? (
                 <>
                   <QualityFlag quality={r.q} />
-                  <span className="num w-24 text-right text-data text-fg">{formatReading(r.m.value, r.m.metric)}</span>
+                  <span className="num w-24 text-right text-data text-fg">
+                    {formatReading(r.m.value, r.m.metric)}
+                  </span>
                 </>
               ) : (
                 <span className="text-body-sm text-fg-muted">No live reading</span>

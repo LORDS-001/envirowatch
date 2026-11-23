@@ -275,9 +275,7 @@ function StatStrip() {
         className={span(3)}
         icon={<ShieldCheck size={20} strokeWidth={1.5} />}
         label="Valid readings, last 24 h"
-        value={
-          health.data?.valid_rate_24h === undefined ? "–" : formatNumber(health.data.valid_rate_24h * 100, 1)
-        }
+        value={health.data?.valid_rate_24h == null ? "–" : formatNumber(health.data.valid_rate_24h * 100, 1)}
         unit="%"
         context={health.data ? `p95 ${formatNumber(health.data.latency_ms.p95 / 1000, 1)} s` : undefined}
         loading={health.isLoading}

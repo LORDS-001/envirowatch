@@ -25,9 +25,28 @@ const now = Date.parse("2026-11-05T10:00:10Z");
 const key = latestKey("sensor-001", "pm25");
 
 describe("applyEvents", () => {
+  it("does not confuse separate devices that reuse a reading ID", () => {
+    const state = applyEvents(
+      emptySnapshot(),
+      [
+        msg("r1", "2026-11-05T10:00:00Z", 20),
+        msg("r1", "2026-11-05T10:00:00Z", 30, { device_id: "sensor-002" }),
+      ],
+      new SeenIds(),
+      now,
+    );
+    expect(state.readings).toBe(2);
+    expect(state.duplicates).toBe(0);
+    expect(Object.keys(state.latest)).toHaveLength(2);
+  });
   it("de-duplicates by reading_id, across flushes too", () => {
     const seen = new SeenIds();
-    let s = applyEvents(emptySnapshot(), [msg("r1", "2026-11-05T10:00:00Z", 20), msg("r1", "2026-11-05T10:00:00Z", 20)], seen, now);
+    let s = applyEvents(
+      emptySnapshot(),
+      [msg("r1", "2026-11-05T10:00:00Z", 20), msg("r1", "2026-11-05T10:00:00Z", 20)],
+      seen,
+      now,
+    );
     expect(s.readings).toBe(1);
     expect(s.duplicates).toBe(1);
     s = applyEvents(s, [msg("r1", "2026-11-05T10:00:00Z", 20)], seen, now);
@@ -39,7 +58,10 @@ describe("applyEvents", () => {
     const seen = new SeenIds();
     const s = applyEvents(
       emptySnapshot(),
-      [msg("r2", "2026-11-05T10:00:10Z", 25), msg("r1", "2026-11-05T10:00:00Z", 20, { received_at: "2026-11-05T10:00:12Z" })],
+      [
+        msg("r2", "2026-11-05T10:00:10Z", 25),
+        msg("r1", "2026-11-05T10:00:00Z", 20, { received_at: "2026-11-05T10:00:12Z" }),
+      ],
       seen,
       now,
     );
@@ -52,7 +74,12 @@ describe("applyEvents", () => {
     const seen = new SeenIds();
     const s = applyEvents(
       emptySnapshot(),
-      [msg("r9", "2026-11-05T12:00:00Z", 99, { quality_status: "quarantined", quality_reason: "clock error" })],
+      [
+        msg("r9", "2026-11-05T12:00:00Z", 99, {
+          quality_status: "quarantined",
+          quality_reason: "clock error",
+        }),
+      ],
       seen,
       now,
     );
@@ -65,7 +92,11 @@ describe("applyEvents", () => {
     const seen = new SeenIds();
     const s = applyEvents(
       emptySnapshot(),
-      [msg("a", "2026-11-05T10:00:01Z", 1), msg("b", "2026-11-05T10:00:02Z", 2), msg("b", "2026-11-05T10:00:02Z", 2)],
+      [
+        msg("a", "2026-11-05T10:00:01Z", 1),
+        msg("b", "2026-11-05T10:00:02Z", 2),
+        msg("b", "2026-11-05T10:00:02Z", 2),
+      ],
       seen,
       now,
     );

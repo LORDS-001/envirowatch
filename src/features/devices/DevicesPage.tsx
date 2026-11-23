@@ -9,6 +9,7 @@ import { hasRole, useSession } from "@/lib/auth/session";
 import { METRICS } from "@/lib/metrics";
 import { useLive } from "@/lib/realtime/hooks";
 import { staleAfterMs } from "@/lib/config";
+import { useNow } from "@/lib/hooks";
 import { usePageTitle } from "@/components/layout/AppShell";
 import { TreeSidebar } from "@/components/layout/TreeSidebar";
 import { DataTable, type ColumnDef } from "@/components/charts/DataTable";
@@ -25,6 +26,12 @@ import { useHealthSummary } from "@/features/health/HealthPage";
 import { RegisterDeviceDialog } from "./RegisterDeviceDialog";
 
 export default function DevicesPage() {
+  const [params] = useSearchParams();
+  const initialSearch = params.get("search") ?? "";
+  return <DeviceList key={initialSearch} initialSearch={initialSearch} />;
+}
+
+function DeviceList({ initialSearch }: { initialSearch: string }) {
   usePageTitle("Devices", "Registered sensors, their sites, health and keys.");
   const [params] = useSearchParams();
   // Admins in more than one organization can switch; the API refuses other tenants (NFR-007).
@@ -43,15 +50,18 @@ export default function DevicesPage() {
   const sites = useSites();
   const health = useHealthSummary();
   const lastSeenLive = useLive((s) => s.deviceLastSeen);
-  const flushedAt = useLive((s) => s.flushedAt);
+  const now = useNow();
 
   const [siteFilter, setSiteFilter] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const [registering, setRegistering] = useState(false);
   const [confirmBulk, setConfirmBulk] = useState(false);
 
-  const healthById = useMemo(() => new Map((health.data?.items ?? []).map((h) => [h.device_id, h.health])), [health.data]);
+  const healthById = useMemo(
+    () => new Map((health.data?.items ?? []).map((h) => [h.device_id, h.health])),
+    [health.data],
+  );
   const siteName = useMemo(() => new Map((sites.data?.items ?? []).map((s) => [s.id, s.name])), [sites.data]);
   const all = useMemo(() => devices.data?.items ?? [], [devices.data]);
 
@@ -59,7 +69,6 @@ export default function DevicesPage() {
     if (d.status === "deactivated") return "deactivated";
     const known = healthById.get(d.id);
     const seen = Math.max(lastSeenLive[d.id] ?? 0, d.last_seen_at ? Date.parse(d.last_seen_at) : 0);
-    const now = flushedAt || Date.now();
     // Live data wins for silence: a device that just reported is online whatever the last poll said.
     if (seen && now - seen <= staleAfterMs) return known && known !== "silent" ? known : "online";
     return known ?? "silent";
@@ -70,7 +79,11 @@ export default function DevicesPage() {
     // Site names go into the row data: the table caches accessor values per row.
     return all
       .map((d) => ({ ...d, siteName: siteName.get(d.site_id) ?? d.site_id }))
-      .filter((d) => (!siteFilter || d.site_id === siteFilter) && (!q || d.id.includes(q) || d.siteName.toLowerCase().includes(q)));
+      .filter(
+        (d) =>
+          (!siteFilter || d.site_id === siteFilter) &&
+          (!q || d.id.includes(q) || d.siteName.toLowerCase().includes(q)),
+      );
   }, [all, siteFilter, search, siteName]);
 
   const tree = useMemo(
@@ -78,7 +91,9 @@ export default function DevicesPage() {
       (sites.data?.items ?? []).map((s) => ({
         id: s.id,
         name: s.name,
-        devices: all.filter((d) => d.site_id === s.id).map((d) => ({ id: d.id, flagged: (healthById.get(d.id) ?? "online") !== "online" })),
+        devices: all
+          .filter((d) => d.site_id === s.id)
+          .map((d) => ({ id: d.id, flagged: (healthById.get(d.id) ?? "online") !== "online" })),
       })),
     [sites.data, all, healthById],
   );
@@ -94,7 +109,10 @@ export default function DevicesPage() {
       setSelection({});
       void qc.invalidateQueries({ queryKey: ["devices"] });
       void qc.invalidateQueries({ queryKey: ["health-summary"] });
-      toast({ title: `${n} device${n === 1 ? "" : "s"} deactivated`, description: "They no longer accept readings." });
+      toast({
+        title: `${n} device${n === 1 ? "" : "s"} deactivated`,
+        description: "They no longer accept readings.",
+      });
     },
   });
 
@@ -111,7 +129,13 @@ export default function DevicesPage() {
         ),
         meta: { width: "130px" },
       },
-      { id: "type", header: "Type", accessorFn: (d) => d.type, cell: ({ row }) => (row.original.type === "weather" ? "Weather" : "Air quality"), meta: { width: "110px" } },
+      {
+        id: "type",
+        header: "Type",
+        accessorFn: (d) => d.type,
+        cell: ({ row }) => (row.original.type === "weather" ? "Weather" : "Air quality"),
+        meta: { width: "110px" },
+      },
       { id: "site", header: "Site", accessorFn: (d) => d.siteName, meta: { width: "minmax(120px,1fr)" } },
       {
         id: "health",
@@ -137,7 +161,7 @@ export default function DevicesPage() {
     ],
     // healthOf reads live data each render; columns rebuild when it changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [siteName, healthById, lastSeenLive, flushedAt],
+    [siteName, healthById, lastSeenLive, now],
   );
 
   return (
@@ -156,12 +180,23 @@ export default function DevicesPage() {
             label="Site"
             value={siteFilter ?? ""}
             onChange={(e) => setSiteFilter(e.target.value || null)}
-            options={[{ value: "", label: "All sites" }, ...(sites.data?.items ?? []).map((s) => ({ value: s.id, label: s.name }))]}
+            options={[
+              { value: "", label: "All sites" },
+              ...(sites.data?.items ?? []).map((s) => ({ value: s.id, label: s.name })),
+            ]}
             className="w-full sm:w-56 lg:hidden"
           />
-          <SearchField label="Filter devices" placeholder="Filter by ID or site" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full sm:w-72" />
+          <SearchField
+            label="Filter devices"
+            placeholder="Filter by ID or site"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full sm:w-72"
+          />
           <p className="text-body-sm text-fg-muted" aria-live="polite">
-            {devices.data ? `${rows.length} of ${all.length} devices${siteFilter ? ` at ${siteName.get(siteFilter)}` : ""}` : ""}
+            {devices.data
+              ? `${rows.length} of ${all.length} devices${siteFilter ? ` at ${siteName.get(siteFilter)}` : ""}`
+              : ""}
           </p>
           {isAdmin && (
             <div className="ml-auto flex gap-2">
@@ -189,15 +224,28 @@ export default function DevicesPage() {
           caption="Devices"
           height={560}
           loading={devices.isLoading}
-          error={devices.error ? { title: "Couldn’t load devices", detail: errorMessage(devices.error), onRetry: () => void devices.refetch() } : null}
+          error={
+            devices.error
+              ? {
+                  title: "Couldn’t load devices",
+                  detail: errorMessage(devices.error),
+                  onRetry: () => void devices.refetch(),
+                }
+              : null
+          }
           empty={{
             title: search || siteFilter ? "No devices match" : "No devices yet",
-            description: search || siteFilter ? "Clear the filter or pick another site." : "Register a device to start receiving readings.",
+            description:
+              search || siteFilter
+                ? "Clear the filter or pick another site."
+                : "Register a device to start receiving readings.",
           }}
           selection={isAdmin ? { value: selection, onChange: setSelection } : undefined}
           onRowOpen={(d) => navigate(`/devices/${d.id}`)}
         />
-        {isAdmin && <p className="text-body-sm text-fg-muted max-sm:hidden">Space selects a row, Enter opens it.</p>}
+        {isAdmin && (
+          <p className="text-body-sm text-fg-muted max-sm:hidden">Space selects a row, Enter opens it.</p>
+        )}
       </Card>
 
       {/* Mounted on open, so the suggested ID and site reflect the loaded device list. */}

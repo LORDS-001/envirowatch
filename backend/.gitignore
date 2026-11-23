@@ -4,3 +4,11 @@ __pycache__/
 *.pyc
 login.sh
 test_ingest.sh
+check.sh
+health.sh
+eval_health.py
+sys.sh
+*.log
+loadtest.sh
+newtest.sh
+newtest.py

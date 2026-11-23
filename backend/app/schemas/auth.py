@@ -15,6 +15,7 @@ class UserOut(BaseModel):
     organization_id: uuid.UUID
     email: str
     role: str
+    invitation_pending: bool = False
 
 
 class OrganizationOut(BaseModel):

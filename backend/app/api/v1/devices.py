@@ -1,3 +1,6 @@
+from app.models import IngestionEvent
+from app.schemas.health import DeviceHealthOut, IngestionEventOut, IngestionEventPage
+from app.services.health import evaluate
 import uuid
 from datetime import datetime, timezone
 
@@ -21,7 +24,7 @@ from app.schemas.device import (
 router = APIRouter(prefix="/devices", tags=["devices"])
 
 
-def _site_in_org(db: Session, site_id: uuid.UUID, user: User) -> Site:
+def _site_in_org(db: Session, site_id: str, user: User) -> Site:
     site = db.scalar(select(Site).where(Site.id == site_id, Site.organization_id == user.organization_id))
     if site is None:
         raise HTTPException(404, detail="Site not found")
@@ -41,7 +44,7 @@ def _device_in_org(db: Session, device_id: str, user: User) -> Device:
 
 @router.get("", response_model=DevicePage)
 def list_devices(
-    site_id: uuid.UUID | None = None,
+    site_id: str | None = None,
     organization_id: uuid.UUID | None = None,
     cursor: str | None = None,
     limit: int = Query(50, ge=1, le=500),
@@ -114,6 +117,7 @@ def update_device(
 @router.post("/{device_id}/rotate-key", response_model=RotatedKey)
 def rotate_key(device_id: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     device = _device_in_org(db, device_id, admin)
+    db.refresh(device, with_for_update=True)
     now = datetime.now(timezone.utc)
 
     db.execute(
@@ -125,3 +129,38 @@ def rotate_key(device_id: str, db: Session = Depends(get_db), admin: User = Depe
     db.add(DeviceCredential(device_id=device.id, key_hash=key_hash))
     db.commit()
     return RotatedKey(device_id=device.id, api_key=raw_key, rotated_at=now)
+
+@router.get("/{device_id}/health", response_model=DeviceHealthOut)
+def device_health(device_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    device = _device_in_org(db, device_id, user)
+    row = next(r for r in evaluate(db, user.organization_id) if r.device.id == device.id)
+    return DeviceHealthOut(
+        device_id=device.id, health=row.health, last_seen_at=device.last_seen_at, events=row.events
+    )
+
+
+@router.get("/{device_id}/ingestion-events", response_model=IngestionEventPage)
+def ingestion_events(
+    device_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    cursor: int | None = Query(None, ge=1),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _device_in_org(db, device_id, user)
+    query = (
+        select(IngestionEvent)
+        .where(IngestionEvent.device_id == device_id)
+        .order_by(IngestionEvent.id.desc())
+        .limit(limit + 1)
+    )
+    if cursor is not None:
+        query = query.where(IngestionEvent.id < cursor)
+    rows = list(db.scalars(query))
+    return IngestionEventPage(items=[
+        IngestionEventOut(
+            device_id=e.device_id, reading_id=e.reading_id or "", outcome=e.outcome,
+            reason=e.reason, received_at=e.received_at,
+        )
+        for e in rows[:limit]
+    ], next_cursor=str(rows[limit - 1].id) if len(rows) > limit else None)

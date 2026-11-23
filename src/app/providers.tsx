@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api/client";
 import { ToastViewport } from "@/components/ui/Toast";
 import { TooltipProvider } from "@/components/ui/Tooltip";
+import { onSessionEnd } from "@/lib/auth/lifecycle";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -12,6 +13,11 @@ export const queryClient = new QueryClient({
       retry: (count, err) => !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
     },
   },
+});
+
+onSessionEnd(() => {
+  void queryClient.cancelQueries();
+  queryClient.clear();
 });
 
 export function AppProviders({ children }: { children: ReactNode }) {

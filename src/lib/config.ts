@@ -1,8 +1,8 @@
 /** Runtime configuration. Everything that differs between mock and real backends lives here. */
 
 function defaultWsUrl(): string {
-  if (typeof location === "undefined") return "ws://localhost/ws";
-  return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
+  if (typeof location === "undefined") return "ws://localhost/api/v1/auth/ws";
+  return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/v1/auth/ws`;
 }
 
 export const config = {

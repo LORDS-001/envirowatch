@@ -4,15 +4,36 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
 from app.core.config import settings
-from app.core.security import DUMMY_HASH, create_access_token, hash_token, verify_password
+from app.core.security import DUMMY_HASH, create_access_token, hash_token, verify_password, hash_password
 from app.db.session import get_db
-from app.models import Organization, RefreshToken, User
+from app.models import Organization, RefreshToken, User, UserInvitation
 from app.schemas.auth import LoginRequest, LoginResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class AcceptInvitation(BaseModel):
+    token: str = Field(min_length=32, max_length=200)
+    password: str = Field(min_length=10, max_length=128)
+
+
+@router.post("/accept-invitation", status_code=204)
+def accept_invitation(body: AcceptInvitation, db: Session = Depends(get_db)):
+    row = db.scalar(select(UserInvitation).where(UserInvitation.token_hash == hash_token("invitation:" + body.token)).with_for_update())
+    now = datetime.now(timezone.utc)
+    if row is None or row.used_at is not None or row.expires_at <= now:
+        raise HTTPException(400, detail="This invitation is invalid or expired. Ask your administrator for access.")
+    user = db.get(User, row.user_id)
+    if user is None:
+        raise HTTPException(400, detail="This invitation is invalid or expired")
+    user.password_hash = hash_password(body.password)
+    row.used_at = now
+    db.commit()
+    return Response(status_code=204)
 
 COOKIE_NAME = "refresh_token"
 COOKIE_PATH = "/api/v1/auth"  
@@ -66,7 +87,7 @@ def refresh(
     if not refresh_token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="No session")
 
-    row = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == hash_token(refresh_token)))
+    row = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == hash_token(refresh_token)).with_for_update())
     now = datetime.now(timezone.utc)
     if row is None or row.revoked_at is not None or row.expires_at <= now:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Session expired")
